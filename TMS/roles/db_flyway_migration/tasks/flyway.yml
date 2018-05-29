@@ -1,0 +1,69 @@
+---
+
+  - name: Decrypt Password
+    shell: runuser -l webtech -c '/U01/Nova/installed/jdk1.8.0_101/bin/java -jar /opt/flyway-{{ flyway_version }}/lib/decode.jar {{ flyway_password_encrypted }} {{ container_type }}'
+    register: password_decrypted
+    ignore_errors: true
+    with_items: 
+      - "{{ node_name }}"
+
+  - name: Set decrypted Password
+    set_fact:
+          flyway_password: "{{ password_decrypted.stdout }}"
+    ignore_errors: true
+    with_items: 
+      - "{{ node_name }}"
+
+  - name: fill template flyway.conf.j2 with the values
+    template:
+      src: "{{ local_git_path }}{{ config_env }}/flyway.conf.j2"
+      dest: "/opt/flyway-{{ flyway_version }}/conf/flyway.conf"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ node_name }}"
+
+  - name: run flyway baseline
+    shell: runuser -l webtech -c 'flyway -baselineVersion={{ baselineVersion }} baseline'
+    register: flyway_baseline
+    with_items: 
+      - "{{ node_name }}"
+
+  - debug:
+      var: flyway_baseline.stdout_lines
+    with_items: 
+      - "{{ node_name }}"
+
+  - name: run flyway info
+    shell: runuser -l webtech -c 'flyway info'
+    register: flyway_info
+    with_items: 
+      - "{{ node_name }}"
+
+  - debug:
+     var: flyway_info.stdout_lines
+    with_items: 
+      - "{{ node_name }}"
+
+  - name: run flyway migrate
+    shell: runuser -l webtech -c 'flyway migrate'
+    register: flyway_migrate
+    with_items: 
+      - "{{ node_name }}"
+
+  - debug:
+     var: flyway_migrate.stdout_lines
+    with_items: 
+      - "{{ node_name }}"
+
+  - name: run flyway validate
+    shell: runuser -l webtech -c 'flyway validate'
+    register: flyway_validate
+    with_items: 
+      - "{{ node_name }}"
+
+  - debug:
+     var: flyway_validate.stdout_lines
+    with_items: 
+      - "{{ node_name }}"

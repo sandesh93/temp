@@ -1,0 +1,32 @@
+---
+
+- name: refresh ansible facts for DB upgrade role
+  stat: path="/U01/{{ product }}/DB_upgrade_temp.lock"
+  register: lockfile
+
+- name: Check for Lock file , Wait if lock file present
+  wait_for:
+    path: "/U01/{{ product }}/DB_upgrade_temp.lock"
+    state: absent
+    timeout: "{{ timeout_sec }}"
+  when: lockfile.stat.exists
+
+- name: create lock file for DB upgrade
+  file:
+    path: "/U01/{{ product }}/DB_upgrade_temp.lock"
+    state: touch
+    owner: webtech
+    group: analytics
+    mode: 0777
+
+- name: get all the db values
+  include: db_upgrade.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name
+
+- name: Delete the lock file
+  file:
+    path: "/U01/{{ product }}/DB_upgrade_temp.lock"
+    state: absent

@@ -1,0 +1,72 @@
+---
+
+- name: Create {{ product }} folder
+  file: path="/U01/{{ product }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+
+- name: Backup of existing config
+  archive:
+      path: "{{ build_path }}/config/"
+      dest: "{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/config.zip"
+      owner: "webtech"
+      group: "analytics"
+      mode: "0755"
+      remove: yes
+  ignore_errors: true
+
+- name: Include the main tomact task iterating over all the nodes
+  include_tasks: tomcat.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name
+
+- name: Get the consul jar required for {{ product }} startupchecks
+  copy:
+    src: "{{ local_git_path }}{{ config_env }}/lib/consulUtil-0.0.1-SNAPSHOT-jar-with-dependencies.jar"
+    dest: "{{ service_tomcat_path }}/{{ service_tomcat_folder }}/bin/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: Get the properties file required to connect to consul
+  copy: 
+    src: "{{ local_git_path }}{{ config_env }}/lib/properties"
+    dest: "{{ service_tomcat_path }}/{{ service_tomcat_folder }}/bin/"
+    owner: "webtech"
+    group: "analytics"
+    mode: 0775
+
+- name: Get the config files
+  copy:
+    src: "{{ local_git_path }}{{ config_env }}/config/{{ item }}"
+    dest: "{{ build_path }}/config/"
+    owner: "webtech"
+    group: "analytics"
+    mode: 0775
+  with_items:
+    - "irequest"
+    - "iRequestReporting"
+
+- name: Get the startupcheck libs
+  copy:
+    src: "{{ local_git_path }}{{ config_env }}/startupchecks"
+    dest: "{{ service_tomcat_path }}/"
+    owner: "webtech"
+    group: "analytics"
+    mode: 0775
+
+- name: config.txt copy
+  template:
+    src: "{{ local_git_path }}{{ config_env }}/config.txt"
+    dest: "/U01/{{ product }}/application/app/config/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: Get the fonts directory
+  copy:
+    src: "{{ local_git_path }}{{ config_env }}/fonts"
+    dest: "{{ service_tomcat_path }}/"
+    owner: "webtech"
+    group: "analytics"
+    mode: 0755

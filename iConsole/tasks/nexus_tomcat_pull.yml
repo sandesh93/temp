@@ -1,0 +1,23 @@
+---
+
+- name: check if tomcat already downloaded
+  stat: path= "{{ tomcat_local_server_path }}{{ tomcat_artifact_id }}-{{ item.tomcat_version }}"
+  register: tomcat_download
+  with_items: "{{ node_name }}"
+
+- name: download tomcat artifactory from nexus
+  local_action:
+    module: maven_artifact
+    group_id: "{{ tomcat_group_id }}"
+    artifact_id: "{{ tomcat_artifact_id }}"
+    version: "{{ item.0.tomcat_version }}"
+    extension: "{{ extension_type }}"
+    repository_url: "{{ tomcat_repo_url }}"
+    username: "{{ nexus_user }}"
+    password: "{{ nexus_passwd }}"
+    dest: "{{ tomcat_local_server_path }}"
+  when: not {{ item.1.stat.exists }}
+  with_together:
+    - "{{ node_name }}"
+    - "{{ tomcat_download.results }}"
+

@@ -1,0 +1,8 @@
+---
+
+- name: Delete the backup folder
+  file:
+    path: "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}"
+    state: absent
+  ignore_errors: yes
+  when: old_node_name_stat.results.0.stat.exists or old_build_folder_stat.results.0.stat.exists

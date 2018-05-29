@@ -1,0 +1,35 @@
+---
+###Build and tomcat vars needed for backup
+# build_path & tomcat_path & backup_path is added in git
+# build_version & git_tag will be external parameter
+
+#General variables
+#product: eCatalog
+
+# local server vars for copy the nexus artifactory
+build_local_server_path: /tmp/
+tomcat_local_server_path: /tmp/
+
+# Artifactory vars
+extension_type: zip
+nexus_user: gauri.save
+nexus_passwd: pass@123
+
+build_group_id: eCatalog
+build_artifact_id: "builds_{{ git_tag.split('_')[0] }}"
+build_version: "{{ git_tag.split('_')[0] }}"
+# If the build is patch then build_version variable will be replaced as ReleaseNumber_PatchNumber ( The task is part of in nexus_pull.yml ).
+build_repo_url: http://192.168.1.215:8081/nexus/content/repositories/zycus.products
+
+tomcat_group_id: thirdparties
+tomcat_artifact_id: apache-tomcat
+tomcat_version: 8.5.8
+tomcat_repo_url: http://192.168.1.215:8081/nexus/content/repositories/zycus.docket/ 
+
+# Git vars
+git_url: git@gitlab.zycus.com:root/eCatalog.git
+#git_tag: master
+git_key: /tmp/id_git_rsa
+
+# The environment as per folder name in git for the configuration files
+#config_env: Dev-config

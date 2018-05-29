@@ -1,0 +1,36 @@
+---
+-
+  name: "Modify controller-info.xml of machine agent"
+  template:
+    dest: "{{ AppDynamics_HOME }}MachineAgent/conf/controller-info.xml"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    src: templates/MachineAgent/controller-info.xml.j2
+
+-
+  name: "Modify controller-info.xml of php in proxy/conf"
+  template:
+    dest: "{{ AppDynamics_HOME }}appdynamics-php-agent/proxy/conf/controller-info.xml"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    src: templates/PhpAgent/controller-info.xml.j2
+
+-
+  name: "Modify controller-info.xml of AppAgent"
+  template:
+    dest: "{{ AppDynamics_HOME }}AppAgent/conf/controller-info.xml"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    src: templates/AppAgent/controller-info.xml.j2
+
+-
+  name: "Modify controller-info.xml of AppAgent"
+  template:
+    dest: "{{ AppDynamics_HOME }}AppAgent/{{ appd_version }}/conf/controller-info.xml"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    src: templates/AppAgent/controller-info.xml.j2

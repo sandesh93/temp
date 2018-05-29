@@ -1,0 +1,8 @@
+---
+
+- name: include build_update
+  include: build_update.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

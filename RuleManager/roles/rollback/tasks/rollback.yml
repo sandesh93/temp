@@ -1,0 +1,23 @@
+---
+
+- name: Check if build folder(backup) exists or not
+  stat: 
+    path: "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.name }}/"
+  register: old_build_folder_stat
+  with_items: "{{ node_name }}"
+
+- name: Remove the builds folder(new) before restoring the backup
+  file:
+    path: "{{ item.0.application_node_path }}"
+    state: absent
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder_stat.results }}" 
+
+- name: Replace build folder with the {{ git_tag }}_{{ existingBuildNumber }} backup
+  shell: mv "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.0.name }}/" "{{ item.0.application_node_path }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder_stat.results }}"

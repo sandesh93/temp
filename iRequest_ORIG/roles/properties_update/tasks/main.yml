@@ -1,0 +1,37 @@
+---
+
+# Backup the existing config
+- name: create backup folder
+  file: path="{{ backup_path }}/Release_{{ git_tag }}/" state=directory recurse=yes mode=0755
+
+- name: check if properties folder is present or not
+  stat: 
+    path: "{{ build_path }}/config/"
+  register: configFolder
+
+- name: Backup the existing config to backup folder
+  command: mv "{{ build_path }}/config/" "{{ backup_path }}/Release_{{ git_tag }}/"
+  when: configFolder.stat.isdir is defined and configFolder.stat.isdir
+  register: result
+
+# Create new folder for config
+- name: Create config folder
+  file: path="{{ build_path }}/config/" state=directory recurse=yes owner=webtech group=analytics mode=0755
+#  when: result|succeeded
+
+#- name: Create required folders:
+#  file: path="{{ build_path }}/config/{{ item }}/" state=directory owner=webtech group=analytics mode=0755
+#  with_items:
+#    - "{{ config_required_folders }}"
+
+# Update the new config
+- name: add common properties files
+  copy:
+    src: "{{ item.source }}"
+    dest: "{{ item.destination }}"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+#    directory_mode: yes
+  with_items:
+    - "{{ property_files }}"

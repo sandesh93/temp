@@ -1,0 +1,33 @@
+---
+
+- name: Create Build folder
+  file:
+    path: "{{ item.application_node_path }}"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+  with_items:
+    - "{{ node_name }}"
+
+- name: create required folders
+  file:
+    path: "{{ item.0.jar_location}}/{{ item.1 }}"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+  with_subelements:
+    - "{{ node_name }}"
+    - build_required_folders
+
+- name: extract build
+  unarchive:
+    src: "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+    dest: "{{ item.jar_location }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: 'no'
+  with_items:
+    - "{{ node_name }}"

@@ -1,0 +1,12 @@
+---
+
+- hosts: all
+  remote_user: "{{ backup_user }}"
+  become: yes
+  vars_files:
+    - vars/main-vars.yml
+  roles: 
+    - consul_rollback
+  post_tasks:
+    - include: tasks/remove_old_files.yml
+      run_once: yes

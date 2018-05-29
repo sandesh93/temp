@@ -1,0 +1,4 @@
+10.70.1.219 pkg="nginx,php,tomcat" consul_node_role=client
+10.70.1.104 pkg="nginx,php,tomcat" consul_node_role=client
+10.70.2.37 pkg="ha" consul_node_role=client
+10.70.2.248 pkg="ha" consul_node_role=client

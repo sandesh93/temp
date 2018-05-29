@@ -1,0 +1,31 @@
+---
+
+- name: Check if build folder(backup) exists or not
+  stat: 
+    path: "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ application_node_path | dirname | basename }}.zip"
+  register: old_build_folder_stat
+
+- debug: msg="{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ application_node_path | dirname | basename }}.zip"
+- name: list all files within {{ application_node_path }}
+  find:
+    path: "{{ application_node_path }}"
+    file_type: any
+  register: file_list
+
+- name: Remove the existing(new) before restoring the backup
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  when: old_build_folder_stat.stat.exists and file_list.files is defined
+  with_items:
+    - "{{ file_list.files }}"
+
+- name: Replace build folder with the {{ git_tag }}_{{ existingBuildNumber }} backup
+  unarchive:
+    src: "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ application_node_path | dirname | basename }}.zip"
+    dest: "{{ application_node_path }}/"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: yes
+  when: old_build_folder_stat.stat.exists

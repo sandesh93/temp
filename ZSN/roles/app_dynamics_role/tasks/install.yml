@@ -1,0 +1,10 @@
+---
+
+  - name: Install MachineAgent
+    shell: runuser -l webtech -c "nohup {{ java_path }}{{ appd_java_version }}/bin/java -Dappdynamics.agent.maxMetrics=25000 -jar {{ AppDynamics_HOME }}MachineAgent/machineagent.jar >>/tmp/appdlog 2>&1 &"
+    ignore_errors: true
+  - name: Install PHPAgent
+    shell: "{{ AppDynamics_HOME }}appdynamics-php-agent/install.sh -s -a={{ Controller_accountName }}@{{ Controller_accountAccessKey }} -e /usr/local/php-{{ php_version }}/lib/php/extensions/no-debug-non-zts-20121212/ -i /usr/local/php-{{ php_version }}/lib/ -p /usr/local/php-{{ php_version }}/bin/ -v 5.5 {{ controllerHost }} {{ controllerPort }} {{ Application_name }} {{ PHP_tierName }} {{ PHP_nodeName }}"
+    notify:
+    - reload php service
+    - restart php service

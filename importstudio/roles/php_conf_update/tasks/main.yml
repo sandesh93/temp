@@ -1,0 +1,135 @@
+---
+
+- name: create a validation folder
+  file: path="/tmp/phpvalidate" state=directory mode=0777 recurse=yes 
+
+#Backup the original file
+- name: Create backup folder
+  file:
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/"
+    state: directory
+    owner: webtech
+    group: analytics        
+    recurse: yes
+    mode: 0775
+
+- name: Check if php-fpm.conf exists or not
+  stat: 
+    path: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+    get_md5: yes
+  register: php_fpm_path_op
+
+- name: Backup php-fpm.conf file
+  copy:
+    src: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+    dest: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ product }}-phpfpm.conf"
+    remote_src: true
+  when: php_fpm_path_op.stat.exists
+
+- name: Check if {{ product }}ui configuration exists or not
+  stat: 
+    path: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+    get_md5: yes
+  register: php_product_path_op
+
+- name: Backup {{ product }}ui configuration file
+  copy:
+    src: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+    dest: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ phpfpm_UI_config_filename }}"
+    remote_src: true	
+  when: php_product_path_op.stat.exists
+
+#Check if there are any changes in deployment
+- name: update the {{ product }} UI conf file
+  template: 
+    src: "{{ build_local_server_path }}builds/templates/php_UI_config.j2"
+    dest: "/tmp/phpvalidate/{{ phpfpm_UI_config_filename }}"
+    owner: webtech
+    group: analytics
+    mode: 0775
+  ignore_errors: true
+
+- name: check the file contents
+  stat:
+    path: "/tmp/phpvalidate/{{ phpfpm_UI_config_filename }}"
+    get_md5: yes
+  register: php_product_path_op_new
+
+- name: modify the php config
+  template:
+    src: "{{ build_local_server_path }}builds/templates/{{ product }}_phpfpm_conf.j2"
+    dest: "/tmp/phpvalidate/{{ product }}-phpfpm.conf"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    backup: yes
+
+- name: check the fle contents of phpfpm
+  stat: 
+    path: "/tmp/phpvalidate/{{ product }}-phpfpm.conf"
+    get_md5: yes
+  register: php_fpm_path_op_new
+
+#Main changes
+- name: create the {{ product }} error log
+  file: 
+    path: /usr/local/php-{{ php_version }}/var/log/{{ product }}.error.log
+    state: touch
+    owner: webtech
+    group: analytics
+    mode: 0664
+
+- name: create config folder
+  file: path="{{ php_build_path }}/config/" state=directory owner=webtech group=analytics mode=0775
+
+- set_fact:
+    php_old_md5: "emptyValue"
+
+- set_fact:
+    php_old_md5: "{{ php_product_path_op.stat.md5 }}"  
+  when: php_product_path_op.stat.exists
+
+- name: update the {{ product }} UI conf file
+  copy: 
+    src: "/tmp/phpvalidate/{{ phpfpm_UI_config_filename }}"
+    dest: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: true
+  when: php_old_md5 != php_product_path_op_new.stat.md5
+  ignore_errors: true
+# register: php_modified_ui
+
+- set_fact:
+    php_valid_old_md5: "emptyValue"
+
+- set_fact:
+    php_valid_old_md5: "{{ php_fpm_path_op.stat.md5 }}"  
+  when: php_fpm_path_op.stat.exists
+  
+- name: modify the php config
+  copy:
+    src: "/tmp/phpvalidate/{{ product }}-phpfpm.conf"
+    dest: "/usr/local/php-{{ php_version }}/etc/php-fpm.d/{{ product }}-phpfpm.conf"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: True
+  when: php_valid_old_md5 != php_fpm_path_op_new.stat.md5
+
+# restart
+- name: Up the fpm service
+  shell: /usr/local/php-{{ php_version }}/init.d.php-fpm reload
+  ignore_errors: true
+  register: phpService
+#  when: php_modified_ui.changed and php_modified_fpm.changed
+
+- name: Restart the php fpm service if reload failed 
+  shell: /usr/local/php-{{ php_version }}/init.d.php-fpm restart
+  when: not phpService.rc == 0
+
+- name: delete a validation folder
+  file: 
+    path: "/tmp/phpvalidate" 
+    state: absent

@@ -1,0 +1,33 @@
+
+
+---
+
+# Pull all the product related config from git
+- local_action:
+    module: file
+    path: "{{ local_git_path }}"
+    state: absent
+
+- name: copy git_key file
+  local_action:
+    module: copy
+    src: files/git_key
+    dest: "{{ git_key }}"
+    owner: jenkins
+    mode: 400
+
+- local_action:
+    module: file
+    path: "{{ local_git_path }}"
+    state: directory
+
+- local_action:
+    module: git
+    repo: "{{ git_url }}"
+    dest: "{{ local_git_path }}"
+    version: "{{ git_tag }}"
+    clone: yes
+    accept_hostkey: yes
+    key_file: "{{ git_key }}"
+
+

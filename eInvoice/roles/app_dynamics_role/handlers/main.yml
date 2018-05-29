@@ -1,0 +1,10 @@
+---
+
+
+  - name: reload php service
+    shell: "/usr/local/php-{{ php_version }}/init.d.php-fpm reload"
+    ignore_errors: true
+    register: phpService
+
+  - name: restart php service
+    shell: "/usr/local/php-{{ php_version }}/init.d.php-fpm restart"

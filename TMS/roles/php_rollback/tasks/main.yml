@@ -1,0 +1,106 @@
+---
+
+- name: Check if lock file from last run exists or not
+  stat: path="/tmp/php_temp.lock"
+  register: lockfile
+
+- name: Wait if lock file present
+  wait_for:
+    path: "/tmp/php_temp.lock"
+    state: absent
+    timeout: "{{ timeout_sec }}"
+  when: lockfile.stat.exists
+
+- name: Create lock file for php
+  file:
+    path: "/tmp/php_temp.lock"
+    state: touch
+    owner: webtech
+    group: analytics
+    mode: 0777
+
+- name: check if php backup folder present or not
+  stat:
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}" 
+  register: php_old_folder_stat
+
+- set_fact:
+    RunPHPRollback: true
+  when: php_old_folder_stat.stat.exists
+
+- set_fact:
+    RunPHPRollback: false
+  when: not php_old_folder_stat.stat.exists
+
+- block:
+    - name: Check if php-fpm.conf exists or not
+      stat: 
+        path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ product }}-phpfpm.conf"
+        get_md5: yes
+      register: backup_php_fpm
+
+    - name: Check existing php-fpm.conf contents
+      stat: 
+        path: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+        get_md5: yes
+      register: backup_php_fpm_existing
+
+    - name: replace php-fpm.conf file
+      copy:
+        src: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ product }}-phpfpm.conf"
+        dest: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+        remote_src: true
+      when: backup_php_fpm.stat.exists and (backup_php_fpm.stat.md5 != backup_php_fpm_existing.stat.md5)
+    #  register: phpConfigChanges_fpm
+
+    - name: delete php-fpm.conf file if backup doesn't exists
+      file:
+        path: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+        state: absent
+      when: not backup_php_fpm.stat.exists
+
+    - name: Check if {{ product}}ui configuration exists or not
+      stat: 
+        path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ phpfpm_UI_config_filename }}"
+        get_md5: yes
+      register: backup_ui
+
+    - name: Check if {{ product}}ui configuration exists or not
+      stat: 
+        path: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+        get_md5: yes
+      register: backup_ui_existing
+
+    - name: Replace {{ product }}ui configuration file
+      copy:
+        src: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ phpfpm_UI_config_filename }}"
+        dest: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+        remote_src: true	
+      when: backup_ui.stat.exists and (backup_ui.stat.md5 != backup_ui_existing.stat.md5)
+    #  register: phpConfigChanges_ui
+
+    - name: Delete {{ product }}ui file if backup doesn't exists
+      file:
+        path: "{{ php_build_path }}/config/{{ phpfpm_UI_config_filename }}"
+        state: absent
+      when: not backup_ui.stat.exists
+
+    - name: Compress the backup folder
+      shell: cd "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/" ; tar -cvzf "{{ git_tag }}_{{ existingBuildNumber }}.tar.gz" "{{ git_tag }}_{{ existingBuildNumber }}/"
+
+    - name: Delete the backup folder 
+      file: 
+        path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}"
+        state: absent
+      ignore_errors: yes
+
+  when: RunPHPRollback
+
+- name: Up the fpm service
+  shell: /usr/local/php-{{ php_version }}/init.d.php-fpm reload
+#  when: phpConfigChanges_fpm.changed and phpConfigChanges_ui.changed
+
+- name: Delete the lock file
+  file: 
+    path: "/tmp/php_temp.lock"
+    state: absent

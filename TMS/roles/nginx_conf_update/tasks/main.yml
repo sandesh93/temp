@@ -1,0 +1,92 @@
+---
+
+#Configuration validation
+- name: create a validation folder
+  file: path="/tmp/nginxvalidate/vhosts" state=directory recurse=yes 
+
+- name: modify the nginx-{{ product }} config
+  template:
+    src: "{{ build_local_server_path }}builds/templates/{{ product }}_nginx_conf.j2"
+    dest: "/tmp/nginxvalidate/vhosts/{{ product }}.conf"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: Copy nginx.conf to validation folder
+  copy:
+    src: "/etc/nginx/{{ item }}"
+    dest: "/tmp/nginxvalidate/{{ item }}"
+    remote_src: true
+  with_items:
+    - nginx.conf
+    - fastcgi_params
+    - mime.types
+
+- name: Validate nginx configiguration
+  shell: nginx -t -c /tmp/nginxvalidate/nginx.conf
+
+#Backup
+- name: Create backup folder
+  file:
+    path: /etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ NewBuildNumber }}/
+    state: directory
+    owner: webtech
+    group: analytics        
+    recurse: yes
+    mode: 0775
+
+- name: check if nginx file exists or not
+  stat: 
+    path: /etc/nginx/vhosts/{{ product }}.conf
+    get_md5: yes
+  register: nginx_vhosts_path_op
+
+- name: Backup {{ product }} vhosts configuration file
+  copy:
+    src: "/etc/nginx/vhosts/{{ product }}.conf"
+    dest: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ NewBuildNumber }}/"
+    remote_src: true	
+  when: nginx_vhosts_path_op.stat.exists
+
+#Check old and new config of nginx
+- name: check new nginx vhosts config
+  stat:
+    path: "/tmp/nginxvalidate/vhosts/{{ product }}.conf"
+    get_md5: yes
+  register: nginx_vhosts_New_op
+
+- set_fact:
+   nginx_vhosts_old_md5: "emptyValue"
+
+- set_fact:
+   nginx_vhosts_old_md5: "{{ nginx_vhosts_path_op.stat.md5 }}"  
+  when: nginx_vhosts_path_op.stat.exists
+
+- name: Replace the vhosts configuration for {{ product }} product with the validated file
+  copy: 
+    src: "/tmp/nginxvalidate/vhosts/{{ product }}.conf" 
+    dest: "/etc/nginx/vhosts/{{ product }}.conf"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: true
+  when: nginx_vhosts_old_md5 != nginx_vhosts_New_op.stat.md5
+  register: nginxVhostChange
+
+- name: restart nginx
+  service: 
+    name: nginx
+    state: restarted
+  when: nginxVhostChange.changed
+
+- name: change permissions of /var/log/nginx
+  file:
+    path: /var/log/nginx/
+    state: directory
+    recurse: yes
+    mode: 0775
+
+- name: delete the created validation folder
+  file:
+    path: /tmp/nginxvalidate
+    state: absent

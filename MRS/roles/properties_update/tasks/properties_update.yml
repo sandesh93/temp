@@ -1,0 +1,23 @@
+---
+
+- name: refresh property role fact
+  set_fact:
+    if_property: "{{ item.properties_role }}"
+  with_items: "{{ node_name }}"
+  
+- name: Set app_node_path
+  set_fact:
+    app_node_path: "{{ item.application_node_path }}"
+  with_items: "{{ node_name }}"
+
+- block:
+    - name: Modify the required property files
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ app_node_path }}/conf/{{ (item.path | basename | splitext)[0] }}"
+        owner: webtech
+        group: analytics
+        mode: '0775'
+        backup: yes
+      with_filetree: "{{ local_git_path }}{{ config_env }}/properties/"
+  when: "{{ if_property }}"

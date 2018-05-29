@@ -1,0 +1,45 @@
+---
+
+- name: Create additional folders on shared space
+  file:
+    path: "{{ item.0.shared_storage_path }}/{{ item.1 }}"
+    state: directory
+    recurse: yes
+    owner: webtech
+    group: analytics
+    mode: 0775
+  with_subelements:
+    - "{{ node_name }}"
+    - shared_folders
+
+- name: Place folder from build to shared storage
+  command: cp -r "{{ temp_path }}/{{ build_folder }}/tenant_system_data" "{{ item.shared_storage_path }}/"
+  with_items:
+    - "{{ node_name }}"
+  run_once: yes
+  
+#- name: Place folder from build to shared storage
+#  copy:
+#    src: "{{ temp_path }}/{{ build_folder }}/tenant_system_data"
+#    dest: "{{ item.shared_storage_path }}/"
+#    owner: webtech
+#    group: analytics
+#    mode: 0775
+#    remote_src: yes
+#    state: directory
+#    force: no
+#  with_items:
+#    - "{{ node_name }}"
+#  run_once: yes
+
+- name: Change owner of shared storage
+  file: 
+    path: "{{ item.shared_storage_path }}/"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: yes
+    recurse: yes
+  with_items:
+    - "{{ node_name }}"
+  run_once: yes

@@ -1,0 +1,4 @@
+---
+
+- name: Include the main flyway task iterating over all the nodes
+  include_tasks: flyway.yml

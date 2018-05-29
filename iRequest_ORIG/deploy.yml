@@ -1,0 +1,49 @@
+---
+
+- hosts: "{{ target }}"
+  become: yes
+  remote_user: webtech
+  vars_files:
+    - vars/main-vars.yml
+  pre_tasks:
+    - name: create local folders for working
+      local_action:
+        module: file
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+        mode: 0777
+      with_items:
+        - "{{ build_local_server_path }}"	  
+        - "{{ tomcat_local_server_path }}"	
+    - include: tasks/git.yml
+      run_once: yes
+    #- include: tasks/nexus_build_pull.yml
+    #  run_once: yes  
+    #- include: tasks/nexus_tomcat_pull.yml
+    #  run_once: yes
+    - include: tasks/nexus_pull.yml
+      run_once: yes
+    - name: including git vars - configurations
+      local_action:
+        module: include_vars
+        dir: '/tmp/git/{{ product }}/{{ config_env }}/'
+        files_matching: '.yml'
+      run_once: yes 
+    #- name: updating bashrc
+    #  lineinfile:
+    #    dest: "/etc/bashrc"
+    #    line: "export {{ item.key }}={{ item.value }}"
+    #    state: present
+    #  with_items:
+    #    - { key: 'CONSUL_IP_PORT', value: "{{ consul_ip }}:{{ consul_port }}" }
+    #    - { key: 'IREQUEST_SETUP_NAME', value: "{{ setup_env|upper }}" }
+    - meta: refresh_inventory	
+  roles: 
+    - { role: nginx_conf_update, when: pkg.find('nginx') != -1 }
+    - { role: php_conf_update, when: pkg.find('php') != -1 }
+    - { role: tomcat_update, when: pkg.find('tomcat') != -1 }
+    #- { role: db_update, when: pkg.find('db') != -1 }
+  post_tasks:
+    - include: tasks/remove_old_files.yml
+      run_once: yes

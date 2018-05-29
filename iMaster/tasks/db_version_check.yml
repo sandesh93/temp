@@ -1,0 +1,109 @@
+---
+
+- name: check DB version file
+  local_action:
+    module: stat path="{{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"
+  register: NewversionFileCheck
+- name: fail if DB version file is not present
+  fail: msg="releaseVersion.properties file not found in new build.  Exiting"
+  when: not NewversionFileCheck.stat.exists
+
+# get build versions
+- stat: path="{{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"
+  register: IfVersionFileExists
+- name: check existing release version on remote server
+  shell: grep -i "^release.number"  {{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: existingReleaseVersion
+  when: IfVersionFileExists.stat.exists
+
+- name: check OLD release version in new build on jenkins server
+  local_action: shell grep -i "^old.release.number"  {{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: BuildOLDVersion
+
+- name: check NEW release version in new build on jenkins server
+  local_action: shell grep -i "^release.number"   {{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: NEWDBVersion
+
+# check NEW release version in new build on jenkins server for DB upgrade
+- name: get relesease number split hyphen
+  set_fact: releaseNowidoutRC="{{ release_number.split('-')[0] }}"
+- name: split with _ and check 2nd var if patch
+  set_fact: splitpatch="{{ release_number.split('_')[1].split('-')[0] }}"
+  ignore_errors: true
+- name: set build version if there is no patch
+  set_fact: BuildNEWVersion="{{ releaseNowidoutRC }}"
+- name: set build version if there is patch
+  set_fact: BuildNEWVersion="{{ releaseNowidoutRC }}_{{ splitpatch }}"
+  when: splitpatch | match("P") or splitpatch | match("p")
+  ignore_errors: true
+
+
+# Get patch number from both builds
+- name: check patch version in new build
+  local_action: shell grep -i "^release.patch.number"  {{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2 | tr -d 'P' | sed 's/ //g'
+  register: NewPatchNumber
+
+- name: check patch number in old build
+  shell: grep -i "^release.patch.number"  {{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2 | tr -d 'P' | sed 's/ //g'
+  register: OldPatchCheck
+  when: IfVersionFileExists.stat.exists
+
+- set_fact:
+    OldPatchNumber: "{{ OldPatchCheck.stdout }}"
+  when: IfVersionFileExists.stat.exists and OldPatchCheck != ""
+- set_fact:
+    OldPatchNumber: 00
+  when: IfVersionFileExists.stat.exists and OldPatchCheck == ""
+
+# Get Build Number from both builds
+- name: build number from new build
+  local_action: shell grep -i "^build.number"  {{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: NewBuildNumber
+
+#- name: Copy fact to other servers ( This task is for ha )
+#  local_action:
+#     module: set_fact
+#     NewBuildNumber_ha: "{{ NewBuildNumber.stdout }}"
+#  delegate_to: "{{ item }}"
+#  with_items: "{{ ansible_play_hosts }}"
+#  run_once: yes
+
+- name: build number from existing build
+  shell: grep -i "^build.number"  {{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: OldBuildNumber
+  when: IfVersionFileExists.stat.exists
+
+- block:
+#    - name: compare build number - fail if build number is less than or equal
+#      fail: msg="Base Build number is {{ OldBuildNumber.stdout }} New Build number is {{ NewBuildNumber.stdout }}.  Exiting... No need to run rollback script."
+#      when: NewBuildNumber.stdout <= OldBuildNumber.stdout
+    - name: Display version details
+      debug: 
+        msg:
+           - "Base Version is {{ BuildOLDVersion.stdout }} with Build_number {{ OldBuildNumber.stdout }}"
+           - "Deploying {{ NEWDBVersion.stdout }} with Build_number {{ NewBuildNumber.stdout }}"
+      when: IfVersionFileExists.stat.exists
+#      when: IfVersionFileExists.stat.exists and (NEWDBVersion.stdout > existingReleaseVersion.stdout)
+#    - name: fail when version does not match
+#      fail: msg="Can not deploy {{ NEWDBVersion.stdout }} on existing release {{ existingReleaseVersion.stdout }}. Exiting... No need to run rollback script."
+#      when: IfVersionFileExists.stat.exists and (NEWDBVersion.stdout <= existingReleaseVersion.stdout)
+  when: NewPatchNumber.stdout == ""
+
+- block:
+    - name: fail if Release version not same for patch
+      fail: msg="Base Version is not {{ NEWDBVersion.stdout }}. Exiting... No need to run rollback script."
+      when: IfVersionFileExists.stat.exists and (NEWDBVersion.stdout != existingReleaseVersion.stdout)
+    - name: fail if patch is not greater than old patch
+      fail: msg="Base Patch is {{ OldPatchNumber }} New patch is {{ NewPatchNumber.stdout }}. Exiting... No need to run rollback script."
+      when: IfVersionFileExists.stat.exists and (NewPatchNumber.stdout <= OldPatchNumber)
+    - name: compare build number - fail if build number is less than or equal
+      fail: msg="Base Build number is {{ OldBuildNumber.stdout }} New Build number is {{ NewBuildNumber.stdout }}.  Exiting... No need to run rollback script."
+      when: IfVersionFileExists.stat.exists and (NewBuildNumber.stdout <= OldBuildNumber.stdout)
+
+    - name: Display version details 
+      debug: 
+        msg:
+           - "Base Version is {{ BuildOLDVersion.stdout }}_{{ OldPatchNumber }} with Build_number {{ OldBuildNumber.stdout }}"
+           - "Deploying {{ NEWDBVersion.stdout }}_{{ NewPatchNumber.stdout }} with Build_number {{ NewBuildNumber.stdout }}"
+      when: IfVersionFileExists.stat.exists
+  when: NewPatchNumber.stdout != ""

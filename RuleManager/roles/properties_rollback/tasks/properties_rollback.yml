@@ -1,0 +1,45 @@
+---
+
+- name: refresh property role fact
+  set_fact:
+    if_property: "{{ item.properties_role }}"
+  with_items: "{{ node_name }}"
+
+- block:
+
+    - name: Check if build folder exists or not
+      stat: 
+        path: "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.name }}/"
+      with_items:
+        - "{{ node_name }}"
+      register: old_node_name_stat
+
+    - name: Remove the builds folder before restoring the backup
+      file:
+        path: "{{ item.0.jar_location }}/{{ item.1.destination }}"
+        state: absent
+      when: old_node_name_stat.results.0.stat.exists
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+      ignore_errors: yes
+
+    - name: Replace build folder with the {{ git_tag }}_{{ existingBuildNumber }} backup
+      shell: mv "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.0.name }}/{{ item.1.source }}" "{{ item.0.jar_location }}/{{ item.1.destination }}"
+      when: old_node_name_stat.results.0.stat.exists	  
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+
+    - name: verify the permissions to build folder
+      file: 
+        path: "{{ item.0.jar_location }}/{{ item.1.destination }}" 
+        state: directory 
+        owner: webtech 
+        group: analytics 
+        mode: 0775
+        recurse: yes
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+  when: "{{ if_property }}"

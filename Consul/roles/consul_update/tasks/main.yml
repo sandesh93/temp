@@ -1,0 +1,82 @@
+---
+
+- set_fact:
+   EnvName : "{{ Env|upper }}"
+   ProdName: "{{ Prod|upper }}"
+
+# Backup the existing values
+- debug: var=ProdName
+
+- name: Create backup folders
+  local_action:
+   module: file
+   path: "{{ consul_local_backup_path }}Release_{{ TagName }}/" 
+   state: directory 
+   recurse: yes 
+   mode: 0777
+
+- name: consul export back up
+  local_action:
+   module: shell runuser -l root -c 'export CONSUL_HTTP_ADDR={{ EndPoint }}:{{ EndPointPort }} && echo $CONSUL_HTTP_ADDR && consul kv export {{ EnvName }}/{{ ProdName }}/ >  {{ consul_local_backup_path }}Release_{{ TagName }}/kv.json'
+  become: yes
+  register: ckv
+
+- name: fail if the exit code is not zero
+  fail:
+   msg: "consul kv export failed with exit code {{ g2c.rc }}"
+  when: ckv.rc != 0
+
+- name: create backup folder at backup location
+  file:
+   path: "{{ backup_location }}Release_{{ TagName }}"
+   state: directory
+   recurse: yes
+   owner: webtech
+   group: analytics
+
+- name: copy form control server to backup location
+  copy: 
+   src: "{{ consul_local_backup_path }}Release_{{ TagName }}/kv.json" 
+   dest: "{{ backup_location }}Release_{{ TagName }}/kv.json"
+   owner: webtech
+   group: analytics
+
+# Update new values   
+- set_fact:
+   repoURL : "{{ item.1 }}"
+  when: item.0.name =="{{ ProdName }}"
+  with_subelements:
+    - "{{ addr }}"
+    - url
+
+- name: prep the git2consul.json
+  local_action:
+   module: template
+   src: templates/git2consul.json.j2
+   dest: /tmp/git2consul.json
+   owner: webtech
+   group: analytics
+   mode: 0777
+
+- name: Delete the existing values
+  local_action:
+   module: uri
+   url: http://{{ EndPoint }}:{{ EndPointPort }}/v1/kv/{{ EnvName }}/{{ ProdName }}?recurse
+   method: DELETE
+
+- name: run git2consul
+  local_action:
+   module: shell git2consul --endpoint {{ EndPoint }} --port {{ EndPointPort}} --config-file /tmp/git2consul.json -n
+  register: g2c
+  become_user: webtech
+
+- name: fail if the exit code is not zero
+  fail:
+    msg: "git2consul failed with exit code {{ g2c.rc }}"
+  when: g2c.rc != 0
+
+- name: Delete the git2consul KV created
+  local_action:
+   module: uri
+   url: "http://{{ EndPoint }}:{{ EndPointPort }}/v1/kv/{{ EnvName }}/{{ TagName }}"
+   method: DELETE

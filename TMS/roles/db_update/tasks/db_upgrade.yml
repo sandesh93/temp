@@ -1,0 +1,427 @@
+---
+
+#Service block
+- block:
+#Check if .sql file present or not
+    - name: Service node- check if DBQueries file present or not
+      stat: path="{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Service_node/Upgrade/DBQueries.sql"
+      register: SqlFilestat
+      with_items: "{{ node_name }}"
+#    - name: Service node- fail if file is not there
+#      fail: msg="DBQueries.sql file does not exists in required path"
+#      when: not item.stat.exists
+#      with_items: "{{ SqlFilestat.results }}"
+    - set_fact:
+        SQL_File_exists: true
+      when: item.stat.exists
+      with_items: "{{ SqlFilestat.results }}"
+
+    - set_fact:
+        SQL_File_exists: false
+      when: not item.stat.exists
+      with_items: "{{ SqlFilestat.results }}"
+
+    - block:
+        - name: update log4j template
+          template:
+            src: "{{ build_local_server_path }}/{{ build_folder }}/DB/SQL/log4j.j2"
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/log4j.properties"
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    # This block will get conection details for service node
+    # Get DB values form consul
+        - name: Get DB url from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_URL?raw
+            method: GET
+            return_content: yes
+          register: url
+          ignore_errors: yes
+        - name: Get url var
+          set_fact:
+            db_url: "{{ url.content }}"
+          ignore_errors: yes
+
+        - name: Get DB username from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_USERNAME?raw
+            method: GET
+            return_content: yes
+          register: username
+          ignore_errors: yes
+        - name: Get username var
+          set_fact:
+            db_username: "{{ username.content }}"
+          ignore_errors: yes
+
+        - name: Get DB password from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_PASSWORD?raw
+            method: GET
+            return_content: yes
+          register: password
+          ignore_errors: yes
+        - name: Get password var
+          set_fact:
+            db_password: "{{ password.content }}"
+          ignore_errors: yes
+
+    # If consul is down then get DB values from properties file
+        - name: if consul is down then take url value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_URL" | cut -d'=' -f2
+          when: db_url is undefined
+          with_items: "{{ node_name }}"
+          register: db_urlReg
+        - set_fact: db_url="{{ item.stdout }}"
+          when: db_url is undefined
+          with_items: "{{ db_urlReg.results }}"
+
+        - name: if consul is down then take username value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_USERNAME" | cut -d'=' -f2
+          when: db_username is undefined
+          with_items: "{{ node_name }}"
+          register: db_usernameReg
+        - set_fact: db_username="{{ item.stdout }}"
+          when: db_username is undefined
+          with_items: "{{ db_usernameReg.results }}"
+
+        - name: if consul is down then take password value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_PASSWORD" | cut -d'=' -f2`
+          when: db_password is undefined
+          with_items: "{{ node_name }}"
+          register: db_passwordReg
+        - set_fact: db_password="{{ item.stdout }}"
+          when: db_password is undefined
+          with_items: "{{ db_passwordReg.results }}"
+
+    #Split the url to get type, host, port and db_name
+        - name: check if ther is backslash present or not in db_type
+          set_fact: CheckSlash_dbtype="{{ db_url.split(':')[1][-1] }}"
+        - name: Get DB type if there is no backslash
+          set_fact: db_type="{{ db_url.split(':')[1] | replace(' ','') }}"
+          when: CheckSlash_dbtype != "\\"
+        - name: Get DB type if there is backslash at the end of string
+          set_fact: dbTypeSplit="{{ db_url.split(':')[1] }}"
+          when: CheckSlash_dbtype == "\\"
+        - shell: echo {{ dbTypeSplit }} | tr --delete \\
+          register: DBTypeReg
+          when: CheckSlash_dbtype == "\\"
+        - set_fact: db_type="{{ DBTypeReg.stdout | replace(' ','') }}"
+          when: CheckSlash_dbtype == "\\"
+
+        - name: check if there is backslash present or not in db_hostname
+          set_fact: CheckSlash_dbhostname="{{ db_url.split(':')[3][-1] }}"
+        - name: Get DB host if there is no backslash
+          set_fact: db_host="{{ db_url.split(':')[3][1:] | replace(' ','') }}"
+          register: DBhostReg
+          when: CheckSlash_dbhostname != "\\"
+        - name: Get DB host if there is backslash at the end of string
+          set_fact: dbhostnameSplit="{{ db_url.split(':')[3][1:]  }}"
+          when: CheckSlash_dbhostname == "\\"
+        - shell: echo {{ dbhostnameSplit }} | tr --delete \\
+          register: DBhostReg
+          when: CheckSlash_dbhostname == "\\"
+        - set_fact: db_host="{{ DBhostReg.stdout | replace(' ','') }}"
+          when: CheckSlash_dbhostname == "\\"
+
+        - name: Get DB port
+          shell: echo {{ db_url }} | cut -d'@' -f 2 | cut -d'/' -f 1 | cut -d':' -f 2
+          register: db_RegPort
+        - set_fact: db_port="{{ db_RegPort.stdout }}"
+
+        - name: Get DB name
+          shell: echo {{ db_url }} | cut -d'@' -f 2 | cut -d"/" -f 2| cut -d':' -f 3
+          register: db_RegName
+        - set_fact: db_name="{{ db_RegName.stdout }}"
+
+    #Fill the values in jdbc.properties file
+        - name: check if jdbc.properties file present or not
+          file:
+            path: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties"
+            state: touch
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+        - name: empty the jdbc properties file
+          shell: truncate {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties --size 0
+          with_items: "{{ node_name }}"
+
+        - name: Add the details in jdbc.properties file
+          blockinfile:
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties"
+            block: |
+                {{ product|lower }}.oracle.url={{ db_url }}
+                {{ product|lower }}.oracle.username={{ db_username }}
+                {{ product|lower }}.oracle.password={{ db_password }}
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    #Checking the DB version if DB is already updated or not
+        - name: include all lib to CLASSPATH
+          set_fact:
+            CLASSPATH : "{{ item.java_path }}{{ item.java_version }}/lib:{{ item.tomcat_build_path }}/{{ build_folder }}/DB:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/Properties:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/config.txt:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties:"
+          with_items: "{{ node_name }}"
+
+        - name: include all lib to CLASSPATH
+          set_fact:
+            CLASSPATH : "{{ CLASSPATH + build_path + '/' + build_folder + '/DB/lib/' + item.split('/')[-1] + ':' }}"
+          with_fileglob:
+            - "{{ build_local_server_path }}builds/DB/lib/*"
+        - set_fact:
+            CLASSPATH: "{{ CLASSPATH[:-1] }}"
+
+        - name: get DB version form DB
+    #      shell: runuser -l webtech -c 'java  -Xmx1024M -Duser.timezone=GMT -classpath {{ CLASSPATH }} -Xdebug -Xrunjdwp:transport=dt_socket,address=8787,server=y,suspend=y com.zycus.{{ product|lower }}.patch.util.DbReleaseVersion {{ BuildNEWVersion.stdout }}'
+          shell: runuser -l webtech -c 'java  -Xmx1024M -Duser.timezone=GMT -classpath {{ CLASSPATH }} com.zycus.{{ product|lower }}.patch.util.DbReleaseVersion {{ BuildNEWVersion }}'
+          register: DBversion
+
+        - debug:
+            msg: "{{ DBversion }}"
+        - fail: msg="DB Already updated"
+          when: DBversion.stdout == true
+
+        - debug: msg="upgrading DB"
+          when: DBversion.stdout != true
+
+    #Fill the values in databaseDetails.properties file
+        - name: Create DatabaseDetails.properties file
+          file: path="{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties" state=touch
+          with_items: "{{ node_name }}"
+
+        - name: empty the datbaseDetails.properties file
+          shell: truncate {{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties --size 0
+          with_items: "{{ node_name }}"
+
+        - name: Add the details in properties file
+          blockinfile:
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties"
+            block: |
+                ConnectionCount=1
+                Delimiter=GO
+                Application_Node_Type=tomcat
+
+                DatabaseCategory_1=Service_node
+                database_port_1={{ db_port }}
+                database_password_1={{ db_password }}
+                database_user_1={{ db_username }}
+                database_host_1={{ db_host }}
+                database_type_1={{ db_type }}
+                database_name_1={{ db_name }}
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    #Copy prerequisite
+        - name: delete DBQueries.sql if already prseent in Service node from last run
+          file: path= "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Service_node/DBQueries.sql" state=absent
+          with_items: "{{ node_name }}"
+
+        - name: copy .sql to DB/SQL/Service_node/ file so that will be fetch by jar
+          copy:
+            src: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Service_node/Upgrade/DBQueries.sql"
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Service_node/DBQueries.sql"
+            remote_src: true
+          with_items: "{{ node_name }}"
+
+        - name: dos2unix for the queries
+          shell: dos2unix "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Service_node/DBQueries.sql"
+          with_items: "{{ node_name }}"	  
+    # Run the executor
+        - name: Run sql jar for DB upgrade
+          shell: runuser -l webtech -c 'java -jar {{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/ZycusSqlExecutor-1.1.4.jar'
+          register: DBUpgradeOP
+          with_items: "{{ node_name }}"
+        - fail: msg=" {{ product }} Alter Execution Failed. Upgrade Failed.Exiting.. DB RollBack Needed"
+          when: item.stderr == 1
+          with_items: "{{ DBUpgradeOP.results }}"
+      when: SQL_File_exists
+  when: node_name | selectattr(search_key,'equalto',search_val) | list | count > 0
+  vars:
+    search_key: name
+    search_val: service_node
+
+# Reporting block
+- block:
+# check if .sql file present or not
+    - name: check if DBQueries file present or not
+      stat: path="{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Reporting/Upgrade/DBQueries.sql"
+      register: SqlFilestat
+      with_items: "{{ node_name }}"
+#    - name: fail if file is not there
+#      fail: msg="DBQueries.sql file does not exists in required path"
+#      when: not item.stat.exists
+#      with_items: "{{ SqlFilestat.results }}"
+    - set_fact:
+        SQL_File_exists_reporting: true
+      when: item.stat.exists
+      with_items: "{{ SqlFilestat.results }}"
+
+    - set_fact:
+        SQL_File_exists_reporting: false
+      when: not item.stat.exists
+      with_items: "{{ SqlFilestat.results }}"
+
+    - block: 
+        - name: update log4j template
+          template:
+            src: "{{ build_local_server_path }}/{{ build_folder }}/DB/SQL/log4j.j2"
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/log4j.properties"
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    # This block will get DB conectivity details for reporting node
+        - name: check if jdbc.properties file present or not
+          file:
+            path: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties"
+            state: touch
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+        - name: empty the jdbc.properties file
+          shell: truncate {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties --size 0
+          with_items: "{{ node_name }}"
+
+        - file:
+            path: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/log.txt"
+            state: touch
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    #Get DB values from server.xml
+        - name: Get URL values from server.xml file
+          shell: runuser -l webtech -c "cd  {{ item.tomcat_build_path }}/{{ build_folder }}/DB/ && java -cp lib/zyutil-bond-1.1.jar com.zycus.util.file.ServerXMLParser {{ item.tomcat_path }}/{{ item.tomcat_folder }}/conf/server.xml {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties reporting.oracle.url //Server/Service/Engine/Host/Context[@path=\"'/{{ product|lower }}/analytics'\"]/Resource/@url >> {{ item.tomcat_build_path }}/{{ build_folder }}/DB/log.txt"
+          with_items: "{{ node_name }}"
+        - shell: cat {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties | grep "reporting.oracle.url" | cut -d'=' -f2
+          register: db_urlReg
+          with_items: "{{ node_name }}"
+        - set_fact: db_url="{{ item.stdout }}"
+          with_items: "{{ db_urlReg.results }}"
+
+        - name: Get username values from server.xml file
+          shell:  runuser -l webtech -c "cd  {{ item.tomcat_build_path }}/{{ build_folder }}/DB/ && java -cp lib/zyutil-bond-1.1.jar com.zycus.util.file.ServerXMLParser {{ item.tomcat_path }}/{{ item.tomcat_folder }}/conf/server.xml {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties reporting.oracle.username  //Server/Service/Engine/Host/Context[@path=\"'/{{ product|lower }}/analytics'\"]/Resource/@username >> {{ item.tomcat_build_path }}/{{ build_folder }}/DB/log.txt"
+          with_items: "{{ node_name }}"
+        - shell: cat {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties | grep "reporting.oracle.username" | cut -d'=' -f2
+          register: db_usernameReg
+          with_items: "{{ node_name }}"
+        - set_fact: db_username="{{ item.stdout }}"
+          with_items: "{{ db_usernameReg.results }}"
+
+        - name: Get password values from server.xml file
+          shell:  runuser -l webtech -c "cd  {{ item.tomcat_build_path }}/{{ build_folder }}/DB/ && java -cp lib/zyutil-bond-1.1.jar com.zycus.util.file.ServerXMLParser {{ item.tomcat_path }}/{{ item.tomcat_folder }}/conf/server.xml {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties reporting.oracle.password  //Server/Service/Engine/Host/Context[@path=\"'/{{ product|lower }}/analytics'\"]/Resource/@password >> {{ item.tomcat_build_path }}/{{ build_folder }}/DB/log.txt"
+          with_items: "{{ node_name }}"
+        - shell: cat {{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties | grep "reporting.oracle.password" | cut -d'=' -f2
+          register: db_passwordReg
+          with_items: "{{ node_name }}"
+        - set_fact: db_password="{{ item.stdout }}"
+          with_items: "{{ db_passwordReg.results }}"
+
+    # Split the url to get type, host, port and db_name
+        - name: check if ther is backslash present or not in db_type
+          set_fact: CheckSlash_dbtype="{{ db_url.split(':')[1][-1] }}"
+        - name: Get DB type if there is no backslash
+          set_fact: db_type="{{ db_url.split(':')[1] | replace(' ','') }}"
+          when: CheckSlash_dbtype != "\\"
+        - name: Get DB type if there is backslash at the end of string
+          set_fact: dbTypeSplit="{{ db_url.split(':')[1] }}"
+          when: CheckSlash_dbtype == "\\"
+        - shell: echo {{ dbTypeSplit }} | tr --delete \\
+          register: DBTypeReg
+          when: CheckSlash_dbtype == "\\"
+        - set_fact: db_type="{{ DBTypeReg.stdout | replace(' ','') }}"
+          when: CheckSlash_dbtype == "\\"
+
+        - name: check if ther is backslash present or not in db_hostname
+          set_fact: CheckSlash_dbhostname="{{ db_url.split(':')[3][-1] }}"
+        - name: Get DB type if there is no backslash
+          set_fact: db_host="{{ db_url.split(':')[3][1:] | replace(' ','') }}"
+          when: CheckSlash_dbhostname != "\\"
+        - name: Get DB type if there is backslash at the end of string
+          set_fact: dbhostnameSplit="{{ db_url.split(':')[3][1:]  }}"
+          when: CheckSlash_dbhostname == "\\"
+        - shell: echo {{ dbhostnameSplit }} | tr --delete \\
+          register: DBhostReg
+          when: CheckSlash_dbhostname == "\\"
+        - set_fact: db_host="{{ DBhostReg.stdout | replace(' ','') }}"
+          when: CheckSlash_dbhostname == "\\"
+
+        - name: Get DB port
+          shell: echo {{ db_url }} | cut -d'@' -f 2 | cut -d'/' -f 1 | cut -d':' -f 2
+          register: db_RegPort
+        - set_fact: db_port="{{ db_RegPort.stdout }}"
+
+        - name: Get DB name
+          shell: echo {{ db_url }} | cut -d'@' -f 2 | cut -d"/" -f 2| cut -d':' -f 3
+          register: db_RegName
+        - set_fact: db_name="{{ db_RegName.stdout }}"
+
+    # Fill the values in databaseDetails.properties file
+        - name: Create DatabaseDetails.properties file
+          file: path="{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties" state=touch
+          with_items: "{{ node_name }}"
+
+        - name: empty the databaseDetails.properties file
+          shell: truncate {{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties --size 0
+          with_items: "{{ node_name }}"
+
+        - name: Add the details in properties file
+          blockinfile:
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/databaseDetails.properties"
+            block: |
+                ConnectionCount=1
+                Delimiter=GO
+                Application_Node_Type=tomcat
+                DatabaseCategory_1=Reporting
+                database_port_1={{ db_port }}
+                database_password_1={{ db_password }}
+                database_user_1={{ db_username }}
+                database_host_1={{ db_host }}
+                database_type_1={{ db_type }}
+                database_name_1={{ db_name }}
+            owner: webtech
+            group: analytics
+            mode: 0775
+          with_items: "{{ node_name }}"
+
+    # copy prerequisite
+        - name: delete DBQueries.sql if present in reporting node
+          file: path= "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Reporting/DBQueries.sql" state=absent
+          with_items: "{{ node_name }}"
+
+        - name: copy .sql file to DB/SQL/Reporting/
+          copy:
+            src: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Reporting/Upgrade/DBQueries.sql"
+            dest: "{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Reporting/DBQueries.sql"
+            remote_src: true
+          with_items: "{{ node_name }}"
+
+        - name: dos2unix for the queries
+          shell: dos2unix {{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/Reporting/DBQueries.sql
+          with_items: "{{ node_name }}"
+
+    #Run the executor
+        - name: Run sql jar for DB upgrade
+          shell: runuser -l webtech -c 'java -jar {{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL/ZycusSqlExecutor-1.1.4.jar'
+          register: DBUpgradeOP
+          with_items: "{{ node_name }}"
+        - fail: msg=" {{ product }} reporting Alter Execution Failed. Upgrade Failed.Exiting.. DB RollBack Needed"
+          when: item.stderr == 1
+          with_items: "{{ DBUpgradeOP.results }}"
+      when: SQL_File_exists_reporting
+  when: node_name | selectattr(search_key,'equalto',search_val) | list | count > 0
+  vars:
+    search_key: name
+    search_val: reporting_node

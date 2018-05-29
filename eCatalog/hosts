@@ -1,0 +1,7 @@
+10.70.2.17 pkg="ha" consul_node_role=client
+10.70.2.226 pkg="ha" consul_node_role=client
+10.70.1.9 pkg="nginx,php,tomcat" consul_node_role=client nodeList=[service_node]
+10.70.1.63 pkg="nginx,php,tomcat" consul_node_role=client nodeList=[service_node]
+10.70.1.113 pkg="nginx,php,tomcat" consul_node_role=client nodeList=[integration_node]
+10.70.1.120 pkg="nginx,php,tomcat" consul_node_role=client nodeList=[integration_node]
+10.70.1.138 pkg="nginx,php,tomcat,properties" consul_node_role=client nodeList=[reporting]

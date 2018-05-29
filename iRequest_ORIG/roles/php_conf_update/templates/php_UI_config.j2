@@ -1,0 +1,103 @@
+<?php
+
+global $config;
+
+$protocol = (isset ($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
+//$config['base_url']   =  $protocol . "://" . $_SERVER['HTTP_HOST'] . "/irequest/";
+$config['base_url']     ="http://{{ nginx_server_name }}:{{ nginx_port_https }}/irequest/";
+
+$config['java_base_url'] = "http://10.70.1.212:54080/";
+$config['irequest_service_url'] = $config['java_base_url']. "irequest/";
+$config['irequest_service_base_url'] = $config['irequest_service_url']. "rest/request";
+
+/*eform config
+**/
+$config['eforms_php_service_base_url'] = "https://qaeform.zycus.net:7443/eforms/";
+
+$config['base_url_eforms']      =  "https://qaeform.zycus.net:7443/eforms/";
+
+$config['default_service_url'] = $config['irequest_service_url'];
+$config['default_service_base_url'] = $config['irequest_service_base_url'];
+$config['sessionTimeout'] = 30;
+
+$config['sso_service_url'] = "http://192.168.4.185:8080/sso/servicehandler";
+$config['sso_server_login_url'] = "https://smtlogin.zycus.net/sso/login";
+$config['sso_server_logout_url'] = "https://smtlogin.zycus.net/sso/logout";
+$config['tms_profile_url'] = "https://smttenants.zycus.net/tms/public/user/userProfile.tms";
+$config['product_selection_url'] = "https://smttenants.zycus.net/tms/user/homepage.tms";
+$config['check_product_status_url'] = "https://smttenants.zycus.net/tms/public/checkStatusOfProductForCNS.tms";
+$config['eform_create_url'] = '{EFORM_CREATE_URL}';
+
+$config['help_online_videos_url'] = 'https://testeproc.zycus.net:7443/help';
+$config['report_url'] = $config['base_url'].'iRequestReporting/viewReports';
+$config['cns_url'] = 'http://192.168.1.144:9080/cns/serviceClientRequests.cns';
+$config['smtp_host'] = 'automail1.zycus.com';
+
+
+$config['file_upload_server'] = '192.168.2.101';
+$config['file_upload_username'] = 'eprocsftpuser';
+$config['file_upload_password'] = '-6c21bb64b5c7ac1ff12af37c2d25419f';
+$config['file_upload_path'] = '/U01/eproc/infrastructure/data/file_server/EPROC_DEV/';
+
+$config['bypassAMS'] = false;
+$config['track_java_method_usage'] = '';
+$config['cache_path'] = dirname(__FILE__).'/../iRequest/iRequestUI_data/cache/';
+
+$config['eproc_product_name'] = 'iRequest';
+$config['apc_prefix'] = 'irequest_';
+
+$config['notificationToEmail'] = '';
+$config['notificationCCEmail'] = '';
+$config['errorToEmail'] = 'irequest_qa@zycus.com';
+$config['profiler'] = true;
+$config['debug'] = true;
+$config['auto_extend_number'] = 0;
+
+
+$config['data_dir'] = dirname(__FILE__).'/../iRequest/iRequestUI_data/';
+$config['log_dir'] = '/U01/iRequest/application/app/iRequest/iRequestUI_data/logs/';
+
+
+class Properties
+{       public static $tenantServiceUrl = "http://192.168.4.185:8081/";
+        public static $tenantUri = "sso/tenant";
+        public static $userUri = "sso/tenant/user";
+        public static $companyUserUri = "sso/tenant/companyuser";
+        public static $userAuthorizationContextUri = "sso/tenant/userauthorization";
+        public static $abstractCompanyUri = "sso/tenant/abstractcompany";
+        public static $companyUri = "sso/tenant/company";
+        public static $productUri = "sso/tenant/allocatedproduct";
+        public static $CCSServerURL = "http://192.168.1.86:8380/";
+        public static $tenantServiceUrlSupplier = "http://192.168.4.185:8091/";
+}
+$config['smtp_username'] = '';
+$config['smtp_password'] = '';
+//$config['parent_domain'] = '{parent_domain}';
+$config['base_url_imail'] =  "https://qainotify.zycus.net:7443/imail/";
+$config['report_issue_to_error_email'] = '{email_to}';
+
+
+$config['online_help_url'] = $config['base_url'].'html/NetHelp/default.html';
+$config['logo_dir'] = dirname(__FILE__).'/../builds/iRequestUI/html/images/tenant-logo';
+
+
+
+$config['apc_ttl'] = '432000';
+
+
+
+$config['appcache_adapter'] = 'redis';
+$config['redis_server'] = '192.168.2.101';
+$config['redis_server_port'] = '6379';
+
+
+
+
+
+
+$config['productVersion'] = 'R17.01.1.0';
+$config['cacheVersion'] = '28613';
+
+$config['supplier_sso_service_url'] = "http://192.168.4.185:8090/sso/servicehandler";
+$config['supplier_sso_server_login_url'] = "http://smtsupplogin.zycus.net/sso/";
+$config['supplier_homepage_url'] = 'https://zsnqa.zycus.net:3543/guest';

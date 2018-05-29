@@ -1,0 +1,8 @@
+---
+
+- name: Include the main node_rollback task iterating over all the nodes
+  include_tasks: node_rollback.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

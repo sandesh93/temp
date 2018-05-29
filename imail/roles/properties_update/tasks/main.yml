@@ -1,0 +1,8 @@
+---
+
+- name: Include the main properties task iterating over all the nodes
+  include_tasks: properties_update.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

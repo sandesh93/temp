@@ -1,0 +1,65 @@
+---
+  - name: check if mount point is symbolically linked
+    stat:
+      path: "/U01/{{ product }}/mount/datafiles"
+    register: gfs_op
+
+  - name: Create symlink with GFS mount
+    file:
+      src: "{{ gfs_path }}/datafiles/"
+      dest: "/U01/{{ product }}/mount/datafiles"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+      state: link
+      force: yes
+    when: not gfs_op.stat.exists
+
+  - name: Check if mail_templates directory is present
+    stat:
+      path: /U01/{{ product }}/mount/datafiles/mail_templates/
+    register: mail_templates_dir_op
+
+  - name: Create mail_templates directory
+    file:
+      path: /U01/{{ product }}/mount/datafiles/mail_templates/
+      state: directory
+      owner: webtech
+      group: analytics
+      recurse: yes
+      mode: 0775
+    when: not mail_templates_dir_op.stat.exists
+    run_once: yes
+
+  - name: Check if mail_templates file exists
+    stat:
+      path: "/U01/{{ product }}/mount/datafiles/mail_templates/{{ item }}"
+      get_md5: yes
+    with_items:
+      - "{{ mail_templates }}"
+    register: mail_templates_op
+    run_once: yes
+
+  - name: copy mail template file
+    copy:
+      src: "{{ build_local_server_path }}builds/templates/{{ item }}"
+      dest: "/U01/{{ product }}/mount/datafiles/mail_templates/"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ mail_templates }}"
+    when: not mail_templates_op.results[0].stat.exists
+    run_once: yes
+
+  - name: Update Crypto Policy Important!!
+    replace:
+      path: "{{ jdk_path }}jre/lib/security/java.security"
+      regexp:  '#crypto.policy=unlimited'
+      replace: "crypto.policy=unlimited"
+
+  - name: Insert Bouncy castle security config in java.security
+    lineinfile:
+      dest: "{{ jdk_path }}jre/lib/security/java.security"
+      insertafter: "^security.provider.9=sun.security.smartcardio.SunPCSC"
+      line: security.provider.10=org.bouncycastle.jce.provider.BouncyCastleProvider

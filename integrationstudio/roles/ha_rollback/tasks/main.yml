@@ -1,0 +1,141 @@
+---
+
+- name: Check if lock file present or not
+  stat: path="/tmp/haproxy_temp.lock"
+  register: lockfile
+
+- name: Check for Lock file
+  wait_for:
+    path: "/tmp/haproxy_temp.lock"
+    state: absent
+    timeout: "{{ timeout_sec }}"
+  when: lockfile.stat.exists
+
+- name: Create new lock file for ha for this run
+  file:
+    path: "/tmp/haproxy_temp.lock"
+    state: touch
+    owner: webtech
+    group: analytics
+    mode: 0777
+
+- name: Delete the created temp validation folder
+  file: 
+    path: "/tmp/havalidate"
+    state: absent
+  ignore_errors: true
+
+- name: check if HA backup folder present or not
+  stat:
+    path: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}" 
+  register: ha_old_folder_stat
+
+- set_fact:
+    RunHARollback: true
+  when: ha_old_folder_stat.stat.exists
+
+- set_fact:
+    RunHARollback: false
+  when: not ha_old_folder_stat.stat.exists
+
+- block: 
+    #Replace product specific conf file if any changes
+    - name: check existing config for {{ conf_file_product }}
+      stat: 
+        path: "/etc/haproxy/conf/{{ conf_file_product }}" 
+        get_md5: yes
+      register: HaExistingConf
+
+    - name: check if product specific config exists in back up folder
+      stat: 
+        path: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ conf_file_product }}"
+        get_md5: yes
+      register: HaConfProduct		
+
+    - name: Replace the backed up product specific configuration
+      copy:
+        src: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ conf_file_product }}"
+        dest: "/etc/haproxy/conf/{{ conf_file_product }}"
+        owner: webtech
+        group: analytics
+        mode: 0755
+        remote_src: true
+      when: HaConfProduct.stat.exists	and (HaExistingConf.stat.md5 != HaConfProduct.stat.md5)
+      register: configChanges
+
+    - name: delete {{ conf_file_product }} if there is no backup
+      file:
+        path: "/etc/haproxy/conf/{{ conf_file_product }}"
+        state: absent
+      when: not HaConfProduct.stat.exists
+      register: configChanges
+
+    #Replace the block in common conf if any changes
+    - name: starting line number for {{ product }}
+      shell: awk '/\#\ BEGIN\ Config\ for\ {{ product }}\ Ansible\ managed\ block\ \#/{print NR}' /etc/haproxy/conf/{{ conf_file_common }}
+      register: startLine
+
+    - name: ending line number for {{ product }}
+      shell: awk '/\#\ END\ Config\ for\ {{ product }}\ Ansible\ managed\ block\ \#/{print NR}' /etc/haproxy/conf/{{ conf_file_common }}
+      register: endLine
+
+    - name: copy common config
+      shell: sed -n '{{ (startLine.stdout|int)+1 }},{{ (endLine.stdout|int)-1 }}p' /etc/haproxy/conf/{{ conf_file_common }} > /etc/haproxy/conf/{{ git_tag }}_{{ conf_file_common }}.bkp
+
+    - name: check existing config for {{ conf_file_common }}
+      stat: 
+        path: "/etc/haproxy/conf/{{ git_tag }}_{{ conf_file_common }}.bkp" 
+        get_md5: yes
+      register: HaExistingConfCommon
+
+    - name: check if product specific config exists in back up folder
+      stat: 
+        path: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ conf_file_common }}"
+        get_md5: yes
+      register: HaConfProductCommon		
+
+    - name: load the backup file as contents
+      slurp:
+        src: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ conf_file_common }}"   
+      register: ha_common_content
+      when: HaConfProductCommon.stat.exists and (HaExistingConfCommon.stat.md5 != HaConfProductCommon.stat.md5)	
+      ignore_errors: true
+
+    - name: Update the common conf file according to git vars
+      blockinfile:
+        dest: "/etc/haproxy/conf/{{ conf_file_common }}"
+        block: "{{ ha_common_content['content'] | b64decode }}"
+        marker: "# {mark} Config for {{ product }} Ansible managed block #"   
+      when: HaConfProductCommon.stat.exists and (HaExistingConfCommon.stat.md5 != HaConfProductCommon.stat.md5)
+      register: configChangesCommon
+
+    - name: Compress the backup folder
+      shell: cd "/etc/haproxy/old_config/{{ product }}/" ; tar -cvzf "{{ git_tag }}_{{ existingBuildNumber }}.tar.gz" "{{ git_tag }}_{{ existingBuildNumber }}/"
+
+    - name: Delete the backup folder 
+      file: 
+        path: "/etc/haproxy/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}"
+        state: absent
+      ignore_errors: true
+
+    - name: delete temporary file
+      file:
+        path: "/etc/haproxy/conf/{{ git_tag }}_{{ conf_file_common }}.bkp"
+        state: absent
+      ignore_errors: true
+
+    #Restart haproxy
+    - name: Restart HA proxy
+      service: 
+        name: haproxy
+        state: restarted
+      when: 
+        - ( HaConfProduct.stat.exists )
+        - ( configChanges.changed or configChangesCommon.changed )
+
+  when: RunHARollback
+
+- name: Delete the lock file
+  file: 
+    path: "/tmp/haproxy_temp.lock"
+    state: absent

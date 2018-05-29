@@ -1,0 +1,8 @@
+---
+
+- name: Executing rollback over all the nodes
+  include_tasks: build_rollback.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

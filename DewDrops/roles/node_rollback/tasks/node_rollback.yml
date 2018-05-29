@@ -1,0 +1,38 @@
+---
+- name: Check if package folder exists or not
+  stat:
+    path: "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.name }}/package"
+  register: old_build_folder_stat
+  with_items: "{{ node_name }}"
+
+- name: Remove package folder before restoring backup
+  file:
+    path: "{{ item.0.application_node_path }}/package"
+    state: absent
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder_stat.results }}"
+  ignore_errors: true
+
+- name: Replace package folder with the {{ git_tag }}_{{ existingBuildNumber }} backup
+  shell: mv "{{ backup_path }}Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.0.name }}/package" "{{ item.0.application_node_path }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder_stat.results }}"
+  ignore_errors: true
+
+- name: verify the permissions to package folder
+  file:
+    path: "{{ item.0.application_node_path }}/package"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+    recurse: yes
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder_stat.results }}"
+  ignore_errors: true

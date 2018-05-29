@@ -1,0 +1,64 @@
+---
+
+- name: Check if lib folder exists or not
+  stat: path="{{ item.application_node_path }}/{{ build_folder }}/{{ lib_folder }}/"
+  register: tomcat_build_path_op
+  with_items: "{{ node_name }}"
+
+- name: Check if bin folder exists or not
+  stat: path="{{ item.application_node_path }}/bin"
+  register: bin_path_op
+  with_items: "{{ node_name }}"
+
+- name: create backup folder
+  file: path="{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.name }}" state=directory recurse=yes mode=0755
+  with_items:
+    - "{{ node_name }}"
+
+- name: Backup the existing builds folder
+  command: mv "{{ item.0.application_node_path }}/{{ build_folder }}/" "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ tomcat_build_path_op.results }}"
+
+- name: Backup the existing bin folder
+  command: mv "{{ item.0.application_node_path }}/bin" "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ bin_path_op.results }}"
+
+- name: extract build
+  unarchive:
+    src: "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+    dest: "{{ item.application_node_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: 'no'
+  with_items:
+    - "{{ node_name }}"
+
+- name: Create build required folders
+  file: path="{{ item.0.application_node_path }}/{{ item.1 }}" state=directory owner=webtech group=analytics mode=0775
+  with_subelements:
+    - "{{ node_name }}"
+    - build_required_folders
+
+- name: Modify the required shell scripts
+  template:
+    src: "{{ local_git_path }}{{ config_env }}/{{ item.1 }}.j2"
+    dest: "{{ item.0.application_node_path }}/bin/{{ item.1 }}.sh"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_subelements:
+    - "{{ node_name }}"
+    - shell_scripts
+
+- name: delete the tempaltes folder
+  file: path="{{ item.application_node_path }}/{{ build_folder }}/templates" state=absent
+  with_items:
+    - "{{ node_name }}"

@@ -1,0 +1,16 @@
+---
+
+  - name: run flyway repair
+    shell: runuser -l webtech -c 'flyway repair'
+    register: flyway_repair
+    ignore_errors: true
+
+  - debug:
+      var: flyway_repair.stdout_lines
+
+  - name: run flyway info
+    shell: runuser -l webtech -c 'flyway info'
+    register: flyway_info
+
+  - debug:
+     var: flyway_info.stdout_lines

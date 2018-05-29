@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "repos" : [{
+    "repo" : "",
+    "name" : "{{ EnvName }}",
+    "url" : "{{ repoURL }}",
+    "source_root": "{{ EnvName }}",
+    "ignore_file_extension" : true,
+    "include_branch_name" : false,
+    "support_tags" : true,
+    "expand_keys": true,
+    "branches" : ["{{ TagName }}"],
+    "hooks": [{
+      "type" : "polling",
+      "interval" : "1"
+    }]
+  }]
+}

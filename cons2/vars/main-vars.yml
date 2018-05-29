@@ -1,0 +1,37 @@
+---
+
+# Product specific config URL
+
+addr:
+ - name: EPROC
+   url:
+    - "git@gitlab.zycus.com:narendrapateljc/eProc.git"
+
+ - name: ECATALOG
+   url:
+    - "git@gitlab.zycus.com:root/eCatalog.git"
+
+ - name: IMASTER
+   url:
+    - "git@gitlab.zycus.com:root/iMaster.git" 
+
+ - name: ZSN
+   url:
+    - "git@gitlab.zycus.com:root/ZSN.git"
+
+ - name: EINVOICE
+   url:
+    - "git@gitlab.zycus.com:root/eInvoice.git"
+
+ - name: IREQUEST
+   url:
+    - "git@gitlab.zycus.com:root/iRequest.git"
+
+# Backup	
+consul_local_backup_path: "/tmp/consul/"
+backup_user: webtech
+backup_location: "/U01/Consul/"
+# Git vars
+git_url: git@gitlab.zycus.com:narendrapateljc/eProc.git
+#git_tag: master
+git_key: /tmp/id_git_rsa

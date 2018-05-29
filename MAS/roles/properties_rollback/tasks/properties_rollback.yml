@@ -1,0 +1,82 @@
+---
+
+- name: refresh property role fact
+  set_fact:
+    if_property: "{{ item.properties_role }}"
+  with_items: "{{ node_name }}"
+
+- block:
+    - name: refresh ansible facts for properties file role
+      stat: path="/U01/{{ product }}/properties_temp.lock"
+      register: lockfile
+
+    - name: Check for Lock file , Wait if lock file present
+      wait_for:
+        path: "/U01/{{ product }}/properties_temp.lock"
+        state: absent
+        timeout: "{{ timeout_sec }}"
+      when: lockfile.stat.exists
+
+    - name: Create lock file for properties role
+      file:
+        path: "/U01/{{ product }}/properties_temp.lock"
+        state: touch
+        owner: webtech
+        group: analytics
+        mode: 0777
+
+    - name: Check if build folder exists or not
+      stat: 
+        path: "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.name }}/"
+      with_items:
+        - "{{ node_name }}"
+      register: old_node_name_stat
+
+    - name: Remove the builds folder before restoring the backup
+      file:
+        path: "{{ item.0.tomcat_build_path }}/{{ item.1.destination }}"
+        state: absent
+      when: old_node_name_stat.results.0.stat.exists
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+      ignore_errors: yes
+
+    - name: Replace build folder with the {{ git_tag }}_{{ existingBuildNumber }} backup
+      shell: mv "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.0.name }}/{{ item.1.source }}" "{{ item.0.tomcat_build_path }}/{{ item.1.destination }}"
+      when: old_node_name_stat.results.0.stat.exists	  
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+
+    - name: verify the permissions to build folder
+      file: 
+        path: "{{ item.0.tomcat_build_path }}/{{ item.1.destination }}" 
+        state: directory 
+        owner: webtech 
+        group: analytics 
+        mode: 0775
+        recurse: yes
+      with_subelements:
+        - "{{ node_name }}"
+        - property_files
+
+#    - name: Specific to fresh install - Check if build folder exists
+#      stat: 
+#        path: "{{ backup_path }}/Release_{{ git_tag }}_{{ existingBuildNumber }}/{{ item.name }}/{{ build_folder }}"
+#      register: old_build_folder_stat
+#      with_items: "{{ node_name }}"
+
+#    - name: Specific to fresh install  Remove reporting from source
+#      shell: rm -rf /U01/{{ product }}/{{ item.0.name }}/*
+#      when: not "{{ item.1.stat.exists }}" == "1"
+#      with_together:
+#        - "{{ node_name }}"
+#        - "{{ old_build_folder_stat.results }}"
+
+    - name: Delete the lock file
+      file: 
+        path: "/U01/{{ product }}/properties_temp.lock"
+        state: absent
+
+  when: "{{ if_property }}"

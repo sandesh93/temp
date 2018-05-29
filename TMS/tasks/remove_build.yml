@@ -1,0 +1,7 @@
+---
+
+- name: remove build from server
+  file:
+    path: "{{ temp_path }}"
+    state: absent 
+  ignore_errors: yes

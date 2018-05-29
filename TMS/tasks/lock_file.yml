@@ -1,0 +1,121 @@
+---
+
+#-------------HA------------#
+- block:
+    - name: checking for ha lock file
+      stat:
+        path: /tmp/haproxy_temp.lock
+      register: ha
+    - debug:
+        msg:
+          - "##############################################################################################################"
+          - ""
+          - "    HA configuration failure, lock file present please delete it, /tmp/haproxy_temp.lock                      "
+          - ""
+          - "##############################################################################################################"
+      when: ha.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: ha.stat.exists
+  when: pkg.find('ha') != -1
+
+#----------NGINX------------#
+- block:
+    - name: checking for nginx lock file
+      stat:
+        path: /tmp/nginx_temp.lock
+      register: nginx
+    - debug:
+        msg:
+          - "#############################################################################################################"
+          - ""
+          - "   Nginx configuration failure, lock file present please delete it, /tmp/nginx_temp.lock                     "
+          - ""
+          - "#############################################################################################################"
+      when: nginx.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: nginx.stat.exists
+  when: pkg.find('nginx') != -1
+
+#-------------PHP-------------#
+- block:
+    - name: checking for php lock file
+      stat:
+        path: /tmp/php_temp.lock
+      register: php
+    - debug:
+        msg:
+          - "#############################################################################################################"
+          - ""
+          - "    PHP configuration failure, lock file present please delete it, /tmp/php_temp.lock                        "
+          - ""
+          - "#############################################################################################################"
+      when: php.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: php.stat.exists
+  when: pkg.find('nginx') != -1
+
+#-----------TOMCAT----------#
+- block:
+    - name: checking for tomcat lock file
+      stat:
+        path: "/U01/{{ product }}/tomcat_temp.lock"
+      register: tomcat
+    - debug:
+        msg:
+          - "#############################################################################################################"
+          - ""
+          - "    Tomcat configuration failure, lock file present please delete it, /U01/{{ product }}/tomcat_temp.lock    "
+          - ""
+          - "#############################################################################################################"
+      when: tomcat.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: tomcat.stat.exists
+  when: pkg.find('tomcat') != -1
+
+#---------PROPERTIES-----------#
+- block:
+    - name: checking for properties lock file
+      stat:
+        path: "/U01/{{ product }}/properties_temp.lock"
+      register: properties
+    - debug:
+        msg:
+          - "##################################################################################################################"
+          - ""
+          - "    Properties configuration failure, lock file present please delete it, /U01/{{ product }}/properties_temp.lock "
+          - ""
+          - "##################################################################################################################"
+      when: properties.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: properties.stat.exists
+  when: pkg.find('properties') != -1
+
+#--------------DB-------------#
+- block:
+    - name: checking for DB lock file
+      stat:
+        path: "/U01/{{ product }}/DB_upgrade_temp.lock"
+      register: DB
+    - debug:
+        msg:
+          - "#############################################################################################################"
+          - ""
+          - "    Database upgrade failure, lock file present please delete it, /U01/{{ product }}/DB_upgrade_temp.lock    "
+          - ""
+          - "#############################################################################################################"
+      when: DB.stat.exists
+    - name: abort deployment if any lock file exists
+      fail:
+        msg: "Configuration failure, Lock files found, please delete"
+      when: DB.stat.exists
+  when: pkg.find('db_sqlalters') != -1

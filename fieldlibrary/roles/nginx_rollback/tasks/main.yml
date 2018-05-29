@@ -1,0 +1,101 @@
+---
+
+- name: delete the created validation folder
+  file:
+    path: /tmp/nginxvalidate
+    state: absent
+  ignore_errors: true
+
+- name: check if nginx backup folder present or not
+  stat:
+    path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}" 
+  register: nginx_old_folder_stat
+
+- set_fact:
+    RunNginxRollback: true
+  when: nginx_old_folder_stat.stat.exists
+
+- set_fact:
+    RunNginxRollback: false
+  when: not nginx_old_folder_stat.stat.exists
+
+- block: 
+    #Restore product nginx conf  if there are any changes
+    - name: check nginx vhost conf
+      stat: 
+        path: "/etc/nginx/vhosts/{{ product }}.conf"
+        get_md5: yes
+      register: nginx_product_Existing
+
+    - name: check if nginx vhost file exists or not
+      stat: 
+        path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ product }}.conf"
+        get_md5: yes
+      register: nginx_product
+
+    - name: restore from vhosts
+      copy:
+        src: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/{{ product }}.conf"
+        dest: "/etc/nginx/vhosts/{{ product }}.conf"
+        remote_src: true
+      when: nginx_product.stat.exists and (nginx_product_Existing.stat.md5 != nginx_product.stat.md5)
+      register: nginxConfigChanges
+
+    - name: delete {{ product }}.conf if there if no backup
+      file:
+        path: "/etc/nginx/vhosts/{{ product }}.conf"
+        state: absent
+      when: not nginx_product.stat.exists
+      register: nginxConfigChanges
+
+    #Restore common nginx conf if there are any changes
+    - name: check contents of nginx.conf
+      stat:
+        path: "/etc/nginx/nginx.conf"
+        get_md5: yes
+      register: nginx_common_existing
+
+    - name: check if nginx common backup file exists or not
+      stat: 
+        path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/nginx.conf"
+        get_md5: yes
+      register: nginx_common
+
+    - name: load the backup file as contents
+      slurp:
+        src: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}/nginx.conf"   
+      register: nginx_content
+      when: nginx_common.stat.exists and (nginx_common_existing.stat.md5 != nginx_common.stat.md5)
+
+#    - name: replace the line in nginx.conf
+#      lineinfile:
+#        dest: /etc/nginx/nginx.conf
+#        state: present
+#        regexp: '.\ ;\ \#for\ {{ product }}'
+#        line: "{{ nginx_content['content'] | b64decode }}"
+#      when: nginx_product.stat.exists and (nginx_common_existing.stat.md5 != nginx_common.stat.md5)
+#      register: nginxConfigChangesCommon
+
+    - name: Compress the backup folder
+      shell: cd "/etc/nginx/old_config/{{ product }}/" ; tar -cvzf "{{ git_tag }}_{{ existingBuildNumber }}.tar.gz" "{{ git_tag }}_{{ existingBuildNumber }}/"
+
+    - name: Delete the backup folder 
+      file: 
+        path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}_{{ existingBuildNumber }}"
+        state: absent
+      ignore_errors: true
+
+    - name: restart nginx
+      service: 
+        name: nginx
+        state: restarted
+      when: nginxConfigChanges.changed
+
+    - name: change permissions of var/cache/nginx
+      file:
+        path: /var/cache/nginx/
+        state: directory
+        recurse: yes
+        mode: 0775
+
+  when: RunNginxRollback

@@ -1,0 +1,45 @@
+---
+
+- name: check if build exists
+  stat:
+    path: "{{ jar_location }}"
+  register: old_build_folder
+  with_items:
+    - "{{ node_name }}"
+
+- name: create backup folder
+  file:
+    path: "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder.results }}"
+
+- name: Copy existing build to backup location
+  command: mv "{{ item.0.application_node_path }}" "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder.results }}"
+
+- name: verify permission of backup folder
+  file:
+    path: "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+    recurse: yes
+
+- name: Remove the existing build
+  file:
+    path: "{{ item.0.application_node_path }}"
+    state: absent
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ old_build_folder.results }}"

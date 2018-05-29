@@ -1,0 +1,32 @@
+---
+
+# Change build_version for nexus if the build is patch as ReleaseNumber_PatchNumber (example:17.01.1.0_P1) if not patch then build_version will be Release number (Example: 17.01.1.0)
+#- set_fact:
+#    if_patch: "{{ git_tag.split('_')[1] }}"
+#- set_fact:
+#    build_version: "{{ git_tag.split('_')[0] }}_{{ git_tag.split('_')[1] }}"
+#  when: if_patch | match("P")
+
+# Copy .zip from nexus (Build & Tomcat)
+
+- name: download build artifactory from nexus
+  local_action:
+    module: maven_artifact
+    group_id: "{{ build_group_id }}"
+    artifact_id:  "{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id  }}"
+    repository_url: "{{ build_snapshot_url if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_release_url }}"
+    version: "{{ build_version }}"
+    extension: "{{ extension_type }}"
+    username: "{{ nexus_user }}"
+    password: "{{ nexus_passwd }}"
+    dest: "{{ build_local_server_path }}"
+
+- name: rename the build folder
+  local_action: shell mv "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}-{{ build_version }}.zip" "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+  ignore_errors: true
+
+- name: extract build
+  local_action:
+    module: unarchive
+    src: "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+    dest: "{{ build_local_server_path }}"

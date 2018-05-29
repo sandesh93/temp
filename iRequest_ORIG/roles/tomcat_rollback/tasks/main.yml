@@ -1,0 +1,82 @@
+---
+
+- name: Check if build folder exists or not
+  stat: 
+    path: "{{ backup_path }}/Release_{{ git_tag }}/{{ build_folder }}"
+  register: backup_build
+
+- name: Remove the builds folder before restoring the backup
+  file:
+    path: "{{ build_path }}/{{ build_folder }}"
+    state: absent
+  when: backup_build.stat.exists
+
+- name: Replace build folder with the {{ git_tag }} backup
+  shell: mv "{{ backup_path }}/Release_{{ git_tag }}/{{ build_folder }}" "{{ build_path }}/"
+  when: backup_build.stat.exists
+  register: buildConfigChanges
+
+- name: verify the permissions to build folder
+  file: 
+    path: "{{ build_path }}/{{ build_folder }}" 
+    state: directory 
+    owner: webtech 
+    group: analytics 
+    mode: 0775
+    recurse: yes
+  when: backup_build.stat.exists
+
+- name: Check if tomcat folder exists
+  stat: 
+    path: "{{ backup_path }}/Release_{{ git_tag }}/{{ tomcat_folder }}"
+  register: backup_tomcat
+
+- name: Remove the tomcat folder before restoring the backup
+  file:
+    path: "{{ tomcat_path }}/{{ tomcat_folder }}"
+    state: absent
+  when: backup_tomcat.stat.exists
+
+- name: Replace build folder with the {{ git_tag }} backup
+  shell: mv "{{ backup_path }}/Release_{{ git_tag }}/{{ tomcat_folder }}" "{{ tomcat_path }}/"
+  when: backup_tomcat.stat.exists
+
+# Reporting tomcat rollback
+
+- name: Check if reporting tomcat folder exists
+  stat: 
+    path: "{{ backup_path }}/Release_{{ git_tag }}/{{ reporting_tomcat_folder }}"
+  register: reporting_backup_tomcat
+
+- name: Remove the tomcat folder before restoring the backup
+  file:
+    path: "{{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}"
+    state: absent
+  when: reporting_backup_tomcat.stat.exists
+
+- name: Replace build folder with the {{ git_tag }} backup
+  shell: mv "{{ backup_path }}/Release_{{ git_tag }}/{{ reporting_tomcat_folder }}" "{{ reporting_tomcat_path }}/"
+  when: reporting_backup_tomcat.stat.exists
+
+- name: verify the permissions to tomcat folder
+  file: 
+    path: "{{ tomcat_path }}/{{ tomcat_folder }}" 
+    state: directory 
+    owner: webtech 
+    group: analytics 
+    mode: 0775
+    recurse: yes
+  when: backup_tomcat.stat.exists
+
+- name: Compress the backup folder
+  archive:
+    path: "{{ backup_path }}/Release_{{ git_tag }}/"
+    dest: "{{ backup_path }}/Release_{{ git_tag }}/.tar.gz"
+  when: buildConfigChanges.changed
+
+- name: Delete the backup folder 
+  file: 
+    path: "{{ backup_path }}/Release_{{ git_tag }}/"
+    state: absent
+  ignore_errors: yes
+  when: buildConfigChanges.changed

@@ -1,0 +1,80 @@
+---
+- name: delete the created validation folder
+  file:
+    path: /tmp/nginxvalidate
+    state: absent
+  ignore_errors: yes
+
+# restore product nginx conf  
+- name: check if nginx vhost file exists or not
+  stat: 
+    path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}/{{ product }}.conf"
+  register: nginx_product
+
+- name: restore from vhosts
+  copy:
+    src: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}/{{ product }}.conf"
+    dest: "/etc/nginx/vhosts/{{ product }}.conf"
+    remote_src: true
+  when: nginx_product.stat.exists
+  register: nginxConfigChanges
+
+# restore common nginx conf  
+- name: check if nginx common backup file exists or not
+  stat: 
+    path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}/nginx.conf"
+  register: nginx_common
+
+- name: load the backup file as contents
+  slurp:
+    src: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}/nginx.conf"   
+  register: nginx_content
+  when: nginx_common.stat.exists	
+
+- name: replace the line in nginx.conf
+  lineinfile:
+    dest: /etc/nginx/nginx.conf
+    state: present
+    regexp: '.\ ;\ \#for\ {{ product }}'
+    line: "{{ nginx_content['content'] | b64decode }}"
+  when: nginx_product.stat.exists
+
+#- name: starting line number for ecatalog
+#  shell: awk '/\#for\ ecatalog/{print NR}' /etc/nginx/nginx.conf
+#  register: startLine
+#
+#- name: copy common config
+#  shell: sed -n '/^{{ startLine.stdout }}/,/^{{ (startLine.stdout|int)+1 }}/d' /etc/nginx/nginx.conf
+#
+#- name: set_real_ip_from in nginx.conf
+#  lineinfile: 
+#    dest: /etc/nginx/nginx.conf
+#    insertafter: '^\#\ Example\:\ set_real_ip_from\ HAPROXY\ IP\;'
+#    line: "{{ nginx_ecatalog_content['content'] | b64decode }}"
+#  when: nginx_ecatalog.stat.exists
+
+- name: Compress the backup folder
+  archive:
+    path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}"
+    dest: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}.tar.gz"
+  when: nginxConfigChanges.changed
+
+- name: Delete the backup folder 
+  file: 
+    path: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}"
+    state: absent
+  ignore_errors: yes
+  when: nginxconfigChanges.changed
+
+#- name: restart nginx
+#  service: 
+#    name: nginx
+#    state: restarted
+#  when: nginxconfigChanges.changed
+
+- name: change permissions of var/cache/nginx
+  file:
+    path: /var/cache/nginx/
+    state: directory
+    recurse: yes
+    mode: 0775

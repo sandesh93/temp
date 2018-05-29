@@ -1,0 +1,22 @@
+- name: modify the template_AppContext.xml
+  template:
+    src: "{{ build_local_server_path }}{{ build_folder }}/templates/{{ item.AppContext_xml_name }}"
+    dest: "{{ item.tomcat_build_path }}/fl_context/template_AppContext.xml"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_items:
+    - "{{ node_name }}"
+
+- name: modify the template_persistence.xml
+  template:
+    src: "{{ build_local_server_path }}{{ build_folder }}/templates/{{ item.persistence_xml_name }}"
+    dest: "{{ item.tomcat_build_path }}/fl_context/template_persistence.xml"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_items:
+    - "{{ node_name }}"
+

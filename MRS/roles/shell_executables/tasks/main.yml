@@ -1,0 +1,8 @@
+---
+
+- name: Include shell_executable task
+  include: shell_executables.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

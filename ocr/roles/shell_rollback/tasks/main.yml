@@ -1,0 +1,8 @@
+---
+
+- name: Include the main tomact task iterating over all the nodes
+  include_tasks: shell_rollback.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

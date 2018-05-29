@@ -1,0 +1,27 @@
+#---------------------------------------------------------------------
+# COMMON FRONTEND for UI
+#---------------------------------------------------------------------
+
+frontend http-in
+        bind {{ ansible_eth0["ipv4"]["address"] }}:{{ web_https_port }} ssl crt /etc/haproxy/ssl/{{ haproxy_ssl_key }}
+        bind {{ ansible_eth0["ipv4"]["address"] }}:{{ web_http_port }}
+
+        timeout client          10m
+        timeout http-request    10s
+        timeout http-keep-alive 303s
+
+        acl is_ssl ssl_fc
+
+        reqidel ^X-Forwarded-(Proto|Ssl).*
+        reqidel ^HTTPS.*
+
+        reqadd HTTPS:\ on #if is_ssl
+        reqadd X-Forwarded-Ssl:\ on #if is_ssl
+        reqadd X-Forwarded-Proto:\ on #if is_ssl
+        reqadd X-Forwarded-Protocol:\ on #if is_ssl
+        #reqadd X-Forwarded-Proto:\ off unless is_ssl
+        #reqadd X-Forwarded-Protocol:\ off unless is_ssl
+
+# BEGIN Config for {{ product }} Ansible managed block #
+
+# END Config for {{ product }} Ansible managed block #

@@ -1,0 +1,32 @@
+---
+- name: Delete existing temporary java dir
+  file:
+      path: "/tmp/temp_java_dir"
+      state: "absent"
+
+- name: Creating new temporary java dir
+  file:
+      path: "/tmp/temp_java_dir"
+      state: "directory"
+      owner: "webtech"
+      group: "analytics"
+      mode: 0775
+
+- name: Get the required libs
+  copy:
+      src: "{{ local_git_path }}{{ config_env }}/lib"
+      dest: "/tmp/temp_java_dir/"
+      owner: "webtech"
+      group: "analytics"
+      mode: 0775
+
+- name: execute the jars
+  shell: "cd {{ item.chdir }}; {{ item.command }}"
+  with_items:
+      - "{{ java_exec_commands }}"
+     
+- name: Delete the temp jar directory
+  file:
+      path: "/tmp/temp_java_dir/"
+      state: "absent"
+

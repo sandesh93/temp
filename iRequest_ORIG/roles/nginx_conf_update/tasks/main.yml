@@ -1,0 +1,159 @@
+---
+# configuration validation
+- name: create a validation folder
+  file: path="/tmp/nginxvalidate/vhosts" state=directory recurse=yes 
+
+- name: modify the nginx-{{ product }} config
+  template:
+    src: "{{ build_local_server_path }}builds/templates/irequest_nginx_conf.j2"
+    dest: "/tmp/nginxvalidate/vhosts/irequest.conf"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+# - name: Copy nginx.conf to validation folder
+#   copy:
+#     src: "/etc/nginx/{{ item }}"
+#     dest: "/tmp/nginxvalidate/{{ item }}"
+#     remote_src: true
+#   with_items:
+#     - nginx.conf
+#     - fastcgi_params
+#     - mime.types
+
+# - name: remove the existing real ip set by the same product 
+#   lineinfile: 
+#     dest: /tmp/nginxvalidate/nginx.conf
+#     regexp: '.\ ;\ \#for\ {{ product }}'
+#     state: absent
+
+# - name: set_real_ip_from in nginx.conf
+#   lineinfile: 
+#     dest: /tmp/nginxvalidate/nginx.conf
+#     insertafter: '^\#\ Example\:\ set_real_ip_from\ HAPROXY\ IP\;'
+#     line: 'set_real_ip_from {{ web_haproxy_ip }} ; #for {{ product }}'
+
+# - name: Validate nginx configiguration
+#   shell: nginx -t -c /tmp/nginxvalidate/nginx.conf
+
+# Backup of existing folders (Build & Tomcat)
+
+#- name: Delete if backup folder with same tag exists
+#  file: path="{{ backup_path }}/Release_{{ git_tag }}/{{ build_folder }}" state=absent
+#  ignore_errors: yes
+#
+#- name: create backup folder
+#  file: path="{{ backup_path }}/Release_{{ git_tag }}/" state=directory recurse=yes mode=0755
+#
+- name: Check if build folder exists or not
+  stat: path="{{ build_path }}/{{ build_folder }}"
+  register: build_path_op
+#
+- name: Backup the existing build folder
+  command: mv "{{ build_path }}/{{ build_folder }}" "{{ backup_path }}Release_{{ git_tag }}/"
+  when: build_path_op.stat.exists
+#
+- name: Create backup folder
+  file:
+    path: /etc/nginx/old_config/{{ product }}/{{ git_tag }}/
+    state: directory
+    owner: webtech
+    group: analytics        
+    recurse: yes
+    mode: 0775
+
+- name: check if nginx vhost file exists or not
+  stat: 
+    path: /etc/nginx/vhosts/irequest.conf
+  register: nginx_vhost_path_op
+
+- name: Backup {{ product }} vhost configuration file
+  copy:
+    src: "/etc/nginx/vhosts/irequest.conf"
+    dest: "/etc/nginx/old_config/{{ product }}/{{ git_tag }}/"
+    remote_src: true	
+  when: nginx_vhost_path_op.stat.exists
+
+#- name: starting line number for {{ product }}
+#  shell: awk '/\#for\ {{ product }}/{print NR}' /etc/nginx/nginx.conf
+#  register: startLine
+#  when: nginx_vhost_path_op.stat.exists
+
+#- name: copy common config
+#  shell: sed -n '{{ (startLine.stdout|int) }},{{ (startLine.stdout|int) }}p' /etc/nginx/nginx.conf > /etc/nginx/old_config/{{ product }}/{{ git_tag }}/nginx.conf
+#  when: nginx_vhost_path_op.stat.exists
+
+# Deployment	
+## Create new folders (Build & Tomcat)
+- name: Create fresh build folder
+  file: path="{{ build_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  when: not build_path_op.stat.exists
+#
+- name: Create required folders
+  file: path="{{ build_path }}/{{item}}" state=directory owner=webtech group=analytics mode=0775
+  with_items:
+    - "{{ build_required_folders }}"
+#
+#- name: extract build
+#  unarchive:
+#    src: "{{ build_local_server_path }}{{ build_artifact_id }}.zip"
+#    dest: "{{ build_path }}/"
+#    owner: webtech
+#    group: analytics
+#    mode: '0775'
+#    remote_src: no
+#
+#- name: update the bashrc file
+#  blockinfile:
+#    dest: /etc/bashrc
+#    insertafter: EOF
+#    block: |
+#      if [ `id -g` -eq 600 ]
+#      then
+#      umask 002
+#        export JAVA_HOME={{ java_path }}{{ java_version }}
+#        export ANT_HOME={{ java_path }}{{ ant_version }}
+#        export PATH=$JAVA_HOME/bin:$PATH:$HOME/bin:$ANT_HOME/bin
+#        export CLASSPATH=$JAVA_HOME/jre/lib/rt.jar
+#        export JAVA_PATH={{ java_path }}{{ java_version }}
+#        export CONSUL_IP_PORT=127.0.0.1:{{ consul_port }}
+#        export ecatalog_JAVA_BASE_URL=http://{{ app_haproxy_ip }}:{{ app_haproxy_port }}
+#        export ecatalog_LOG_PATH={{ log_path }}
+#        export SETUP_ENV={{ setup_env }}
+#      fi
+#
+#- name: give permissions to builds folder
+#  file: path="{{ build_path }}/{{ build_folder }}" state=directory owner=webtech group=analytics mode=0775
+
+- name: Replace the vhost configuration for {{ product }} product with the validated file
+  copy: 
+    src: "/tmp/nginxvalidate/vhosts/irequest.conf" 
+    dest: "/etc/nginx/vhosts/irequest.conf"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: true
+
+#- name: Replace the nginx.conf with the validated file
+#  copy: 
+#   src: "/tmp/nginxvalidate/nginx.conf" 
+#   dest: "/etc/nginx/nginx.conf"
+#   mode: 0644
+#   remote_src: true
+
+#- name: restart nginx
+#  service: 
+#   name: nginx
+#   state: restarted
+
+- name: change permissions of var/cache/nginx
+  file:
+    path: /var/cache/nginx/
+    state: directory
+    recurse: yes
+    mode: 0775
+
+- name: delete the created validation folder
+  file:
+    path: /tmp/nginxvalidate
+    state: absent

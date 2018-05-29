@@ -1,0 +1,24 @@
+---
+
+- name: Get the shell scripts from build
+  copy:
+    src: "{{ build_local_server_path }}/builds/shell/{{ item.1 }}"
+    dest: "{{ item.0.application_node_path }}/bin/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+  with_subelements:
+    - "{{ node_name }}"
+    - shell_scripts_from_build
+
+- name: Modify the required shell scripts
+  template:
+    src: "{{ local_git_path }}{{ config_env }}/{{ item.1 }}.j2"
+    dest: "{{ item.0.application_node_path }}/bin/{{ item.1 }}.sh"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_subelements:
+    - "{{ node_name }}"
+    - shell_scripts_from_config

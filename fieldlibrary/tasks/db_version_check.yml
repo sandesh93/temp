@@ -1,0 +1,29 @@
+---
+
+- name: check DB version file
+  local_action:
+    module: stat path="{{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"
+  register: NewversionFileCheck
+
+- name: fail if DB version file is not present
+  fail: msg="releaseVersion.properties file not found in new build.  Exiting"
+  when: not NewversionFileCheck.stat.exists
+
+- stat: path="{{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"
+  register: IfVersionFileExists
+
+- name: check existing release version on remote server
+  shell: grep -i "^release.number"  {{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: existingReleaseVersion
+
+- name: build number from new build
+  local_action: shell grep -i "^build.number"  {{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties | cut -d '=' -f2
+  register: NewBuildNumber
+
+- name: Copy fact to other servers ( This task is for ha )
+  local_action:
+     module: set_fact
+     NewBuildNumber_ha: "{{ NewBuildNumber.stdout }}"
+  delegate_to: "{{ item }}"
+  with_items: "{{ ansible_play_hosts }}"
+  run_once: yes

@@ -1,0 +1,29 @@
+---
+ 
+# get build number for rollback
+- local_action:
+     module: file
+     path: "{{ local_git_path }}releaseVersion.properties"
+     mode: 0777
+     state: touch
+
+- name: get release version file to local server
+  fetch:
+     src: "{{ item.tomcat_build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"
+     dest: "{{ local_git_path }}/"
+     flat: yes
+  when: pkg.find('tomcat') != -1
+  with_items: "{{ node_name }}"
+
+- name: build number from existing build
+  local_action: shell grep -i "^build.number" {{ local_git_path }}releaseVersion.properties | cut -d '=' -f2
+  register: existingBuildNumber_fact
+  run_once: yes
+
+- name: Copy fact to other servers
+  local_action:
+     module: set_fact
+     existingBuildNumber: "{{ existingBuildNumber_fact.stdout }}"
+  delegate_to: "{{ item }}"
+  with_items: "{{ ansible_play_hosts }}"
+  run_once: yes

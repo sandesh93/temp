@@ -1,0 +1,44 @@
+---
+
+- name: Check if php-fpm.conf exists or not
+  stat: 
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ product }}-phpfpm.conf"
+  register: backup_php_fpm
+
+- name: replace php-fpm.conf file
+  copy:
+    src: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ product }}-phpfpm.conf"
+    dest: "/usr/local/php-{{ php_version }}/etc/fpm.d/{{ product }}-phpfpm.conf"
+    remote_src: true
+  when: backup_php_fpm.stat.exists
+  register: phpConfigChanges
+
+- name: Check if {{ product}}ui configuration exists or not
+  stat: 
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ phpfpm_UI_config_filename }}"
+  register: backup_ui
+
+- name: Replace {{ product }}ui configuration file
+  copy:
+    src: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ phpfpm_UI_config_filename }}"
+    dest: "{{ build_path }}/config/{{ phpfpm_UI_config_filename }}"
+    remote_src: true	
+  when: backup_ui.stat.exists
+
+#Archive and delete the backup folder
+- name: Compress the backup folder
+  archive:
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}"
+    dest: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}.tar.gz"
+  when: phpConfigChanges.changed
+
+- name: Delete the backup folder 
+  file: 
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}"
+    state: absent
+  ignore_errors: yes
+  when: phpConfigChanges.changed
+
+- name: Up the fpm service
+  shell: /usr/local/php-{{ php_version }}/init.d.php-fpm restart
+  when: phpConfigChanges.changed

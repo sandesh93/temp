@@ -1,0 +1,88 @@
+---
+  - name: create backup folder - for esign templates
+    file: path="{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}" state=directory recurse=yes mode=0755
+    with_subelements:
+      - "{{ node_name }}"
+      - esign_template_location
+    ignore_errors: true
+
+  - name: Backup the existing config to backup folder
+    command: cp "{{ gluster_path }}/{{ esign_template_location }}" "{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}../"
+    with_subelements:
+      - "{{ node_name }}"
+      - esign_template_location
+    ignore_errors: true
+
+  - name: create backup folder - for esign certificates
+    file: path="{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}" state=directory recurse=yes mode=0755
+    with_subelements:
+      - "{{ node_name }}"
+      - esign_certificate_location
+    ignore_errors: true
+
+  - name: Backup the existing certificates to backup folder.
+    command: cp "{{ gluster_path }}/{{ esign_template_location }}" "{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}../"
+    with_subelements:
+      - "{{ node_name }}"
+      - esign_template_location
+    ignore_errors: true
+
+  - name: "Remove folders related to Esign templates"
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ esign_template_location }}"
+      state: absent
+    run_once: yes
+
+  - name: "Remove certificates folder of Esign"
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ esign_certificate_location }}"
+      state: absent
+    run_once: yes
+
+  - name: Create Esign templates directory
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ esign_template_location }}"
+      recurse: true
+      state: directory
+    run_once: yes
+
+  - name: Create Esign templates directory
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ esign_certificate_location }}"
+      recurse: true
+      state: directory
+    run_once: yes
+
+  - name: Copy Esign templates to gluster path
+    copy:
+      src: "{{ build_local_server_path }}builds/templates/{{ item }}"
+      dest: "{{ gluster_path }}/{{ esign_template_location }}/"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ mail_templates }}"
+    run_once: yes
+
+  - name: Copy Esign templates to gluster path
+    copy:
+      src: "{{ build_local_server_path }}builds/templates/{{ item }}"
+      dest: "{{ gluster_path }}/{{ esign_certificate_location }}/"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ esign_certificate }}"
+    run_once: yes

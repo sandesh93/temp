@@ -1,0 +1,35 @@
+---
+- name: remove builds.zip from local machine
+  local_action:
+    module: file
+    path: "{{ build_local_server_path }}{{ build_artifact_id }}.zip"
+    state: absent
+  ignore_errors: yes
+
+- name: remove tomcat.zip from local machine
+  local_action:
+    module: file
+    path: "{{ tomcat_local_server_path }}{{ tomcat_artifact_id }}-{{ tomcat_version }}.zip"
+    state: absent
+  ignore_errors: yes
+
+- name: remove builds folder from local machine
+  local_action:
+    module: file
+    path: "{{ build_local_server_path }}builds"
+    state: absent
+  ignore_errors: yes
+
+- name: remove git folder from local machine
+  local_action:
+    module: file
+    path: /tmp/git
+    state: absent
+  ignore_errors: yes
+
+- name: remove git_key folder from local machine
+  local_action:
+    module: file
+    path: "{{ git_key }}"
+    state: absent
+  ignore_errors: yes

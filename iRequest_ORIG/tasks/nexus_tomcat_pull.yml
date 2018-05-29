@@ -1,0 +1,31 @@
+---
+
+- name: download tomcat artifactory from nexus
+  local_action:
+    module: maven_artifact
+    group_id: "{{ tomcat_group_id }}"
+    artifact_id: "{{ tomcat_artifact_id }}"
+    version: "{{ tomcat_version }}"
+    extension: "{{ extension_type }}"
+    repository_url: "{{ tomcat_repo_url }}"
+    username: "{{ nexus_user }}"
+    password: "{{ nexus_passwd }}"
+    dest: "{{ tomcat_local_server_path }}"
+
+- name: download reporting tomcat artifactory from nexus
+  local_action:
+    module: maven_artifact
+    group_id: "{{ reporting_tomcat_group_id }}"
+    artifact_id: "{{ reporting_tomcat_artifact_id }}"
+    version: "{{ reporting_tomcat_version }}"
+    extension: "{{ extension_type }}"
+    repository_url: "{{ reporting_tomcat_repo_url }}"
+    username: "{{ nexus_user }}"
+    password: "{{ nexus_passwd }}"
+    dest: "{{ tomcat_local_server_path }}"
+
+- name: extract build
+  local_action: 
+    module: unarchive
+    src: "{{ build_local_server_path }}{{ build_artifact_id }}.zip"
+    dest: "{{ build_local_server_path }}"

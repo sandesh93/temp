@@ -1,0 +1,62 @@
+---
+
+- name: refresh property role fact
+  set_fact:
+    if_property: "{{ item.properties_role }}"
+  with_items: "{{ node_name }}"
+
+- block:
+    # - name: Update properties files in git location
+    #   local_action:
+    #     module: template
+    #     src: "{{ item.0.src }}"
+    #     dest: "{{ item.0.src }}"
+    #   with_filetree:
+    #     - "{{ local_git_path }}{{ config_env }}/properties/{{ item.1.name| lower }}"
+    #     - "{{ node_name }}"
+    #   when: item.0.state == 'file'
+
+    # - name: add properties files
+    #   copy:
+    #     src: "{{ local_git_path }}{{ config_env }}/{{ item.1.source }}"
+    #     dest: "{{ item.0.tomcat_build_path }}/{{ item.1.destination }}"
+    #     owner: webtech
+    #     group: analytics
+    #   with_subelements:
+    #     - "{{ node_name }}"
+    #     - property_files
+
+#    - name: Copying property files from git to dest
+#      template:
+#        src: "{{ local_git_path }}{{ config_env }}/{{ item.1.source }}/"
+#        dest: "{{ item.1.destination }}"
+#        owner: webtech
+#        group: analytics
+#      with_subelements:
+#        - "{{ node_name }}"
+#        - property_files
+#      with_file_tree: "{{ local_git_path }}{{ config_env }}/properties/{{ item.1.name|lower }}"
+
+    - name: Copying property files from git to destination
+      template:
+        src: "{{ local_git_path }}{{ config_env }}/properties/{{ item.0.type }}/{{ item.0.node_type }}/{{ item.1 }}.properties.j2"
+        dest: "{{ item.0.tomcat_path }}/settings/{{ item.1 }}.properties"
+        owner: webtech
+        group: analytics
+        mode: '0775'
+      with_subelements:
+        - "{{ node_name }}"
+        - property_file_templates
+
+  when: "{{ if_property }}"
+
+- name: changing owner rights of properties file
+  file:
+    path: "{{ item.tomcat_path }}/settings/"
+    state: directory
+    mode: 0755
+    owner: webtech
+    group: analytics
+    recurse: yes
+  with_items:
+    - "{{ node_name }}"

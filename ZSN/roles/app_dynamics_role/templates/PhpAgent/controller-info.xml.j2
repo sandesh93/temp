@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<controller-info>
+<!-- controller-info.xml is no longer used by the AppDynamics PHP agent.
+     To specify your controller information, please use the INI fragment below,
+     which the installer has written into /usr/local/php-5.5.16/lib/appdynamics_agent.ini
+
+[AppDynamics Agent]
+extension = appdynamics_agent.so
+agent.log4cxx_config = {{ AppDynamics_HOME }}appdynamics-php-agent/php/conf/appdynamics_agent_log4cxx.xml
+agent.php_agent_root = {{ AppDynamics_HOME }}appdynamics-php-agent
+agent.controller.hostName = {{ controllerHost }}
+agent.controller.port = {{ controllerPort }}
+agent.applicationName = {{ Application_name }}
+agent.tierName = {{ PHP_tierName }}
+agent.nodeName = {{ PHP_nodeName }}
+agent.controller.ssl.enabled = {{ Controller_ssl_enabled }}
+agent.accountName = {{ Controller_accountName }}
+agent.accountAccessKey = {{ Controller_accountAccessKey }}
+
+-->
+</controller-info>

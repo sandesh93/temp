@@ -1,0 +1,8 @@
+---
+- local_action:
+   module: template
+   src: templates/db.properties.j2
+   dest: "{{ build_local_server_path }}builds/db.properties"
+
+- local_action:
+   module: shell "java -jar files/SQLExec {{ build_local_server_path }}builds/db.properties {{ build_local_server_path }}builds/templates/db_update.sql"

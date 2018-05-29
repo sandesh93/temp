@@ -1,0 +1,29 @@
+---
+
+- hosts: all
+  become: yes
+  remote_user: webtech
+  vars_files:
+    - vars/main-vars.yml
+  pre_tasks:
+    - include: tasks/git.yml
+      run_once: yes
+    - name: including git vars - configurations
+      local_action:
+        module: include_vars
+        dir: '{{ local_git_path }}{{ config_env }}/'
+        files_matching: '.yml'
+      run_once: yes
+    - include: tasks/get_build_version.yml
+      #when: pkg.find('tomcat') != -1
+      #run_once: yes
+    - meta: refresh_inventory
+  roles: 
+    - { role: rollback, when: pkg.find('rollback') != -1 }
+    - { role: db_flyway_migration, when: pkg.find('db_flyway_migration') != -1 }
+  post_tasks:
+    - include: tasks/remove_old_files.yml
+      with_items:
+        - "{{ nodeList }}"
+      loop_control:
+        loop_var: node_name

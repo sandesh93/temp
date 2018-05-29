@@ -1,0 +1,65 @@
+---
+- name: "Remove files related to AppDynamics of Previous installation" 
+  file:
+    group: analytics
+    mode: "0755"
+    owner: webtech
+    path: /U01/monitoring/AppDynamics
+    state: absent
+
+- name: "Create AppDynamics Directory"
+  file:
+    group: analytics
+    mode: "0755"
+    owner: webtech
+    path: /U01/monitoring/AppDynamics
+    recurse: true
+    state: directory
+
+- name: "Create MachineAgent Directory"
+  file:
+    group: analytics
+    mode: "0755"
+    owner: webtech
+    path: "{{ AppDynamics_HOME }}MachineAgent"
+    state: directory
+
+-
+  name: "extract MachineAgent"
+  unarchive:
+    dest: "{{ AppDynamics_HOME }}MachineAgent/"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    remote_src: "no"
+    src: /U01/appd/machineagent-bundle-32bit-linux-4.3.3.13.zip
+-
+  name: "extract AppAgent"
+  unarchive:
+    dest: "{{ AppDynamics_HOME }}"
+    group: analytics
+    mode: "0775"
+    owner: webtech
+    remote_src: "no"
+    src: /U01/appd/AppAgent.zip
+-
+  name: "extract PhpAgent"
+  unarchive:
+    dest: "{{ AppDynamics_HOME }}"
+    remote_src: "no"
+    src: /U01/appd/appdynamics-php-agent-x64-linux-4.3.2.5.tar.bz2
+
+
+- name: change permissions of the extracted directory to webtech and analytics group
+  shell: "chown -R webtech:analytics {{ AppDynamics_HOME }}appdynamics-php-agent"
+
+- name: "create log file for entering installation status of machine agent"
+  file:
+    group: analytics
+    mode: "0755"
+    owner: webtech
+    path: /tmp/appdlog
+    state: touch
+
+- name: "Insert date"
+  shell: "date >> /tmp/appdlog"

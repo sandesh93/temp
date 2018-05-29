@@ -1,0 +1,50 @@
+---
+
+- name: Create tmp location
+  file:
+    path: "/tmp/Build"
+    state: directory
+    mode: 0755
+    owner: webtech
+    group: analytics
+  with_items:
+    - "{{ node_name }}"
+
+- name: Extract build to /tmp location
+  unarchive:
+    src: "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+    dest: "{{ temp_path }}"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: 'no'
+  with_items:
+    - "{{ node_name }}"
+
+- name: move war files to webapps directory
+  shell: mv "/tmp/Build/builds/{{ item.name|lower }}/{{ item.name|lower if item.name == 'CCS' or item.name == 'SSO' else 'tms' }}.war" "{{ item.tomcat_path }}/webapps/"
+  with_items:
+    - "{{ node_name }}"
+
+- name: Move releaseVersion.properties file to "/U01/{{ product }}/"
+  copy: 
+    src: "{{ temp_path }}/{{ build_folder }}/releaseVersion.properties"
+    dest: "{{ build_path }}/"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    remote_src: yes
+
+- name: Move property files and templates to settings/ directory
+  command: cp -r "{{ temp_path }}/{{ build_folder }}/{{ item.name|lower }}/settings/" "{{ build_path }}/{{ item.name }}/settings/"
+  with_items:
+    - "{{ node_name }}"
+ 
+- name: Move property files and templates to settings/ directory
+  file:
+   path: "{{ build_path }}/{{ item.name }}/settings/"
+   owner: webtech
+   group: analytics
+   mode: 0775
+  with_items:
+    - "{{ node_name }}"

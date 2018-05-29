@@ -1,0 +1,37 @@
+---
+  - name: Check if mail_templates directory is present
+    stat:
+      path: /U01/{{ product }}/mount/mailTemplates/
+    register: mail_templates_dir_op
+
+  - name: Create mail_templates directory
+    file:
+      path: /U01/{{ product }}/mount/mailTemplates/
+      state: directory
+      owner: webtech
+      group: analytics
+      recurse: yes
+      mode: 0775
+    when: not mail_templates_dir_op.stat.exists
+    run_once: yes
+
+  - name: Check if mail_templates file exists
+    stat:
+      path: "/U01/{{ product }}/mount/mailTemplates/{{ item }}"
+      get_md5: yes
+    with_items:
+      - "{{ mail_templates }}"
+    register: mail_templates_op
+    run_once: yes
+
+  - name: copy mail template file
+    copy:
+      src: "{{ build_local_server_path }}builds/templates/{{ item }}"
+      dest: "/U01/{{ product }}/mount/mailTemplates/"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ mail_templates }}"
+    when: not mail_templates_op.results[0].stat.exists
+    run_once: yes

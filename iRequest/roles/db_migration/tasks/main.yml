@@ -1,0 +1,8 @@
+---
+
+- name: Main job to include_tasks db migration job
+  include_tasks: db_migration.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

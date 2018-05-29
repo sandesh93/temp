@@ -1,0 +1,102 @@
+---
+  - name: Get DB url from consul
+    uri:
+      url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_URL?raw
+      method: GET
+      return_content: yes
+    register: url
+    ignore_errors: true
+    
+  - name: Get url var
+    set_fact:
+      flyway_url: "{{ url.content }}"
+    ignore_errors: true
+
+  - name: Get DB username from consul
+    uri:
+      url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_USERNAME?raw
+      method: GET
+      return_content: yes
+    register: username
+
+  - name: Get username var
+    set_fact:
+      flyway_user: "{{ username.content }}"
+
+  - name: Get DB password from consul
+    uri:
+      url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_PASSWORD?raw
+      method: GET
+      return_content: yes
+    register: password
+
+  - name: Get password var
+    set_fact:
+      flyway_password_encrypted: "{{ password.content }}"
+
+  - name: Decrypt Password
+    shell: runuser -l webtech -c 'java -jar /opt/flyway-{{ flyway_version }}/lib/decode.jar {{ flyway_password_encrypted }} {{ container_type }}'
+    register: password_decrypted
+
+  - name: Set decrypted Password
+    set_fact:
+          flyway_password: "{{ password_decrypted.stdout }}"
+
+  - name: fill template flyway.conf.j2 with the values
+    template:
+      src: "{{ local_git_path }}{{ config_env }}/flyway.conf.j2"
+      dest: "/opt/flyway-{{ flyway_version }}/conf/flyway.conf"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+
+  - name: run flyway info
+    shell: runuser -l webtech -c 'flyway info'
+    register: flyway_info
+
+  - debug:
+     var: flyway_info.stdout_lines
+
+  - name: run flyway migrate
+    shell: runuser -l webtech -c 'flyway migrate'
+    register: flyway_migrate
+
+  - debug:
+     var: flyway_migrate.stdout_lines
+   
+  - name: run flyway validate
+    shell: runuser -l webtech -c 'flyway validate'
+    register: flyway_validate
+
+  - debug:
+     var: flyway_validate.stdout_lines
+
+
+  - name: get application url
+    uri:  
+      url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_WEB_URL?raw
+      method: GET
+      return_content: yes
+    register: application_url
+
+  - shell: curl -vvv -s --insecure "{{ application_url }}/scripts/opcache_clear.php?username={{ opcache_un }}&password={{ opcache_pw }}" 2>&1 | tee -a {{ build_path }}/{{ build_folder }}/DB/log.txt
+
+
+  - name: Get Service url from consul
+    uri:
+      url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_SERVICE_URL?raw
+      method: GET
+      return_content: yes
+    register: service_url
+    ignore_errors: true
+
+  - name: Get url var
+    set_fact:
+      product_service_url: "{{ service_url.content }}"
+    ignore_errors: true
+
+  - name: clear opcache
+    set_fact:
+      cache_setting_prop_path: "{{ product_service_url }}/rest/{{ product|lower }}/rebuildCache/rebuild"
+      
+  - shell: curl {{ cache_setting_prop_path }}

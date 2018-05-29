@@ -1,0 +1,29 @@
+---
+
+# Build and tomcat vars needed for backup
+# build_path & tomcat_path & backup_path is added in git
+# build_version & git_tag will be external parameter
+
+# local server vars for copy the nexus artifactory
+build_local_server_path: /U01/tmp/{{ product }}/{{ config_env }}/
+tomcat_local_server_path: /U01/tmp/{{ product }}/{{ config_env }}/
+local_git_path : /U01/tmp/{{ product }}/{{ config_env }}/git/
+
+# Artifactory vars
+extension_type: zip
+nexus_user: gauri.save
+nexus_passwd: pass@123
+release_number: git_tag
+
+build_group_id: com.zycus
+build_artifact_id: IntegrationPlatform-2.0
+build_version: "{{ release_number }}"
+# If the build is patch then build_version variable will be replaced as ReleaseNumber_PatchNumber ( The task is part of in nexus_pull.yml ).
+
+build_release_url: http://192.168.1.215:8081/nexus/content/repositories/zycus.products/
+build_snapshot_url: http://192.168.1.215:8081/nexus/content/repositories/ZycusProductSnapShots/
+
+
+# Git vars
+git_url: http://gitlab.zycus.com/root/integrationplatform-2-0.git
+git_key: /tmp/id_git_rsa

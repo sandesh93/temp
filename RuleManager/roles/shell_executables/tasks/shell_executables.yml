@@ -1,0 +1,30 @@
+---
+
+- name: create required folders
+  file:
+    path: "{{ shell_path }}"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+    recurse: yes
+
+- name: create log folder
+  file:
+    path: "{{ log_path }}"
+    state: directory
+    owner: webtech
+    group: analytics
+    mode: 0775
+
+- name: Modify the required shell scripts
+  template:
+    src: "{{ local_git_path }}{{ config_env }}/{{ item.1 }}.j2"
+    dest: "{{ item.0.shell_path }}/{{ item.1 }}.sh"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_subelements:
+    - "{{ node_name }}"
+    - shell_scripts

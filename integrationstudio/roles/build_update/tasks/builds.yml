@@ -1,0 +1,74 @@
+---
+
+- name: Check if build folder exists or not
+  stat: path="{{ item.build_path }}/{{ build_folder }}/"
+  register: build_path_op
+  with_items: "{{ node_name }}"
+
+- name: create backup folder
+  file: path="{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.name }}" state=directory recurse=yes mode=0755
+  with_items:
+    - "{{ node_name }}"
+
+- name: Backup the existing build folder
+  command: mv "{{ item.0.build_path }}/{{ build_folder }}/" "{{ backup_path }}Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/"
+  when: "{{ item.1.stat.exists }}"
+  with_together:
+    - "{{ node_name }}"
+    - "{{ build_path_op.results }}"
+
+
+
+
+
+#Create new folders (Build & Tomcat)
+- name: Create fresh build folder
+  file: path="{{ item.0.build_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  when: not {{ item.1.stat.exists }}
+  with_together:
+    - "{{ node_name }}"
+    - "{{ build_path_op.results }}"
+
+
+
+- name: Create build required folders
+  file: path="{{ item.0.build_path }}/{{ item.1 }}" state=directory owner=webtech group=analytics mode=0775
+  with_subelements:
+    - "{{ node_name }}"
+    - build_required_folders
+  ignore_errros: true
+
+- name: Create build required folders
+  file: path="{{ item.0.reporting_path }}/{{ item.1 }}" state=directory owner=webtech group=analytics mode=0775
+  when: item.0.name == "reporting"
+  with_subelements:
+    - "{{ node_name }}"
+    - reporting_required_folders
+  ignore_errors: true
+
+- name: extract build
+  unarchive:
+    src: "{{ build_local_server_path }}{{ build_artifact_id|lower if env == 'Dev' or env == 'Qc' or env == 'Preprod' or env == 'Speedy' else build_artifact_id }}.zip"
+    dest: "{{ item.build_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: 'no'
+  with_items:
+    - "{{ node_name }}"
+
+- name: give permissions to builds folder
+  file: path="{{ item.build_path }}/{{ build_folder }}/" state=directory owner=webtech group=analytics mode=0775
+  with_items:
+    - "{{ node_name }}"
+
+
+
+#Get configuration variables from GIT and modifying the tomcat files
+
+- name: delete the tempaltes folder 
+  file: path="{{ item.build_path }}/{{ build_folder }}/templates" state=absent
+  with_items:
+    - "{{ node_name }}"	
+
+

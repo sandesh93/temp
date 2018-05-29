@@ -1,0 +1,202 @@
+---
+
+# Backup of existing folders (Build & Tomcat)
+#- name: Delete if backup folder with same tag exists
+#  file: path="{{ backup_path }}/Release_{{ git_tag }}/{{ build_folder }}/" state=absent
+#  ignore_errors: yes
+
+- name: create backup folder
+  file: path="{{ backup_path }}/Release_{{ git_tag }}/" state=directory recurse=yes mode=0755
+ 
+- name: Check if build folder exists or not
+  stat: path="{{ build_path }}/{{ build_folder }}/"
+  register: build_path_op
+
+- name: Backup the existing build folder
+  command: mv "{{ build_path }}/{{ build_folder }}/" "{{ backup_path }}Release_{{ git_tag }}/"
+  when: build_path_op.stat.exists
+
+- name: Check if tomcat folder exists or not
+  stat: path="{{ tomcat_path }}/{{ tomcat_folder }}"
+  register: tomcat_path_op
+
+- name: Backup the existing tomcat folder
+  command: mv "{{ tomcat_path }}/{{ tomcat_folder }}" "{{ backup_path }}Release_{{ git_tag }}/"
+  when: tomcat_path_op.stat.exists
+
+- name: Check if reporting tomcat folder exists or not
+  stat: path="{{ tomcat_path }}/{{ reporting_tomcat_folder }}"
+  register: reporting_tomcat_path_op
+
+- name: Backup the existing reporting tomcat folder
+  command: mv "{{ tomcat_path }}/{{ reporting_tomcat_folder }}" "{{ backup_path }}Release_{{ git_tag }}/"
+  when: reporting_tomcat_path_op.stat.exists
+
+# Create new folders (Build & Tomcat)
+- name: Create fresh build folder
+  file: path="{{ build_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  when: not build_path_op.stat.exists
+
+- name: Create fresh tomcat folder
+  file: path="{{ tomcat_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  when: not tomcat_path_op.stat.exists
+
+- name: Create fresh reporting tomcat folder
+  file: path="{{ reporting_tomcat_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  when: not reporting_tomcat_path_op.stat.exists
+
+- name: Create required folders
+  file: path="{{ build_path }}/{{item}}" state=directory owner=webtech group=analytics mode=0775
+  with_items:
+    - "{{ build_required_folders }}"
+
+- file: path="{{ item }}" state=directory owner=webtech group=analytics mode=0775
+  with_items:
+    - "{{ tomcat_required_folders }}"
+    
+- name: extract build
+  unarchive:
+    src: "{{ build_local_server_path }}{{ build_artifact_id }}.zip"
+    dest: "{{ build_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: no
+
+- name: give permissions to builds folder
+  file: path="{{ build_path }}/{{ build_folder }}/" state=directory owner=webtech group=analytics mode=0775
+
+- name: extract tomcat
+  unarchive:
+    src: "{{ tomcat_local_server_path }}{{ tomcat_artifact_id }}-{{ tomcat_version }}.zip"
+    dest: "{{ tomcat_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: no
+
+
+# Get configuration variables from GIT and modifying the tomcat files
+
+- name: Add template string to catalina.sh file
+  lineinfile:
+    dest: "{{ tomcat_path }}/{{ tomcat_folder }}/bin/catalina.sh"
+    insertbefore:  "{{ item.property }}"
+    line: "{{ item.value }}"
+  with_items:
+    - "{{ catalina_config }}"
+    
+- name: Copy the application specific lib in tomcat/lib dir
+  copy:
+    src: "{{ build_local_server_path }}/{{ build_folder }}/templates/iRequest/lib/"
+    dest: "{{ tomcat_path }}/{{ tomcat_folder }}/lib/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: Create {{ product }} tomcat logs folder
+  file: path="{{ tomcat_log_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+
+- name: Modify the required shell scripts
+  template:
+    src: "/tmp/git/{{ product }}/{{ config_env }}/iRequest/{{ item }}.j2"
+    dest: "{{ tomcat_path }}/{{ tomcat_folder }}/bin/{{ item }}.sh"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_items: 	
+    - "{{ shell_scripts }}"
+
+- name: modify the server.xml
+  template:
+    src: "{{ build_local_server_path }}{{ build_folder }}/templates/iRequest/server.xml.j2"
+    dest: "{{ tomcat_path }}/{{ tomcat_folder }}/conf/server.xml"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes	
+
+# Reporting tomcat configuration
+
+- name: extract reporting tomcat
+  unarchive:
+    src: "{{ tomcat_local_server_path }}{{ reporting_tomcat_artifact_id }}-{{ reporting_tomcat_version }}.zip"
+    dest: "{{ tomcat_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    remote_src: no
+  
+- name: Add template string to reporting tomcat catalina.sh file
+  lineinfile:
+    dest: "{{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}/bin/catalina.sh"
+    insertbefore:  "{{ item.property }}"
+    line: "{{ item.value }}"
+  with_items:
+    - "{{ reporting_catalina_config }}"
+  
+- name: Create {{ product }} reporting tomcat logs folder
+  file: path="{{ reporting_tomcat_log_path }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+  
+- name: Modify the required reporting tomcat shell scripts
+  template:
+    src: "/tmp/git/{{ product }}/{{ config_env }}/iRequestReporting/{{ item }}.j2"
+    dest: "{{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}/bin/{{ item }}.sh"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+  with_items:   
+    - "{{ reporting_shell_scripts }}"
+
+- name: modify the server.xml
+  template:
+    src: "{{ build_local_server_path }}{{ build_folder }}/templates/iRequestReporting/server.xml.j2"
+    dest: "{{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}/conf/server.xml"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+    backup: yes
+
+- name: Copy the application specific lib in reporting tomcat/lib dir
+  copy:
+    src: "{{ build_local_server_path }}/{{ build_folder }}/templates/iRequestReporting/lib/"
+    dest: "{{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}/lib/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: Copy the startupchecks folder 
+  copy:
+    src: "/tmp/git/{{ product }}/{{ config_env }}/startupchecks"
+    dest: "{{ tomcat_path }}/"
+    owner: webtech
+    group: analytics
+    mode: '0775'
+
+- name: update the bashrc file
+  blockinfile:
+    dest: /etc/bashrc
+    insertafter: EOF
+    block: |
+        {{ bashrc_block }}
+
+- name: Include properties file config role
+  include_role:
+    name: properties_update
+
+#- name: Update setenv.sh file
+#  blockinfile:
+#    dest: "{{ tomcat_path }}/{{ tomcat_folder }}bin/setenv.sh"
+#    block: |
+#      export CONSUL_IP_PORT={{ consul_ip }}:{{ consul_port }}
+#      export IREQUEST_SETUP_NAME={{ setup_env|upper }}
+#    state: present
+#    insertafter: EOF
+
+- name: Start tomcat
+  shell:  runuser -l webtech -c 'cd {{ tomcat_path }}/{{ tomcat_folder }}/bin && ./start.sh'
+
+- name: Start reporting tomcat
+  shell:  runuser -l webtech -c 'cd {{ reporting_tomcat_path }}/{{ reporting_tomcat_folder }}/bin && ./start.sh'

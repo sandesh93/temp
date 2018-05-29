@@ -1,0 +1,67 @@
+---
+# backup the original file
+- name: Create backup folder
+  file:
+    path: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/"
+    state: directory
+    owner: webtech
+    group: analytics        
+    recurse: yes
+    mode: 0775
+
+- name: Check if php-fpm.conf exists or not
+  stat: 
+    path: "/usr/local/php-{{ php_version }}/etc/fpm.d/irequest-phpfpm.conf"
+  register: php_fpm_path_op
+
+- name: Backup php-fpm.conf file
+  copy:
+    src: "/usr/local/php-{{ php_version }}/etc/fpm.d/irequest-phpfpm.conf"
+    dest: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/irequest-phpfpm.conf"
+    remote_src: true
+  when: php_fpm_path_op.stat.exists
+
+- name: Check if {{ product }}ui configuration exists or not
+  stat: 
+    path: "{{ build_path }}/config/{{ phpfpm_UI_config_filename }}"
+  register: php_product_path_op
+
+- name: Backup {{ product }}ui configuration file
+  copy:
+    src: "{{ build_path }}/config/{{ phpfpm_UI_config_filename }}"
+    dest: "/usr/local/php-{{ php_version }}/old_conf/{{ product }}/{{ git_tag }}/{{ phpfpm_UI_config_filename }}"
+    remote_src: true	
+  when: php_product_path_op.stat.exists
+
+# main changes
+- name: create the {{ product }} error log
+  file: 
+    path: /usr/local/php-{{ php_version }}/var/log/{{ product }}.error.log
+    state: touch
+    owner: webtech
+    group: analytics
+    mode: 0664
+
+#- name: update the {{ product }} UI conf file
+#  copy: 
+#    src: "/tmp/git/{{ product }}/{{ setup_env }}/php_UI_config.j2"
+#    dest: "{{ build_path }}/config/{{ phpfpm_UI_config_filename }}"
+#    remote_src: true
+#    owner: webtech
+#    group: analytics
+#    mode: 0775
+
+- name: modify the php config
+  template:
+    src: "{{ build_local_server_path }}builds/templates/irequest_phpfpm_conf.j2"
+    dest: "/usr/local/php-{{ php_version }}/etc/fpm.d/irequest-phpfpm.conf"
+    owner: webtech
+    group: analytics
+    mode: 0775
+    backup: yes
+  register: php_modified
+
+# restart
+- name: Up the fpm service
+  shell: /usr/local/php-{{ php_version }}/init.d.php-fpm restart
+  when: php_modified.changed

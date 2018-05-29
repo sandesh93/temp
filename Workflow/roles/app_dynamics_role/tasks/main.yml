@@ -1,0 +1,7 @@
+---
+
+
+ - include_tasks: pre_task.yml
+# - include_tasks: service.yml
+ - include_tasks: configure.yml
+ - include_tasks: install.yml

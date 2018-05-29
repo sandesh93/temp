@@ -1,0 +1,24 @@
+- name: Check if build folder exists or not
+  stat: 
+    path: "{{ backup_path }}/Release_{{ git_tag }}/config/"
+  register: backup_config
+
+- name: Remove the builds folder before restoring the backup
+  file:
+    path: "{{ build_path }}/config/"
+    state: absent
+  when: backup_config.stat.isdir
+
+- name: Replace build folder with the {{ git_tag }} backup
+  shell: mv "{{ backup_path }}/Release_{{ git_tag }}/config/" "{{ build_path }}/"
+  when: backup_config.stat.isdir
+
+- name: verify the permissions to build folder
+  file: 
+    path: "{{ build_path }}/config/" 
+    state: directory 
+    owner: webtech 
+    group: analytics 
+    mode: 0775
+    recurse: yes
+  when: backup_config.stat.isdir

@@ -1,0 +1,30 @@
+---
+- name: delet the release docs from data directory
+  file: 
+      path: "{{ build_path }}/data/{{item}}/"
+      state: absent
+  with_items:
+      - helpdoc
+      - helpvideo
+
+- name: copy the documents files from builds
+  #copy: src={{ build_path }}/builds/releasedocs dest={{ build_path }}/data/ owner=webtech group=analytics mode=0755 remote_src=yes directory_mode=yes
+  shell: mv {{ build_path }}/builds/releasedocs/* {{ build_path }}/data/
+  ignore_errors: true
+
+- name: permissions of release docs
+  file: path={{ build_path }}/data/ owner=webtech group=analytics mode=0755
+
+- name: clear cache
+  shell: rm -rf {build_path}/data/cache*
+  become_user: webtech
+- name: symphony assets install
+  shell: chdir={{ build_path }}/builds/ZSPUI /usr/local/php-{{ php_version }}/bin/php app/console assets:install web --symlink
+  become_user: webtech
+- name: symphony assetic dump
+  shell: chdir={{ build_path }}/builds/ZSPUI /usr/local/php-{{ php_version }}/bin/php app/console assetic:dump --env=prod --no-debug
+  become_user: webtech
+- name: symphony cache clear
+  shell: chdir={{ build_path }}/builds/ZSPUI /usr/local/php-{{ php_version }}/bin/php app/console cache:clear --env=prod --no-debug -vvv
+  become_user: webtech
+

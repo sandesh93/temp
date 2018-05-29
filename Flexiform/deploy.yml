@@ -1,0 +1,55 @@
+---
+
+- hosts: all
+  become: yes
+  remote_user: webtech
+  vars_files:
+    - vars/main-vars.yml
+  pre_tasks:
+    - name: create local folders for working
+      local_action:
+        module: file
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+        mode: 0777
+      with_items:
+        - "{{ build_local_server_path }}"	  
+        - "{{ tomcat_local_server_path }}"	
+        - "{{ local_git_path }}"
+    - include: tasks/git.yml
+      run_once: yes
+    - name: including git vars - configurations
+      local_action:
+        module: include_vars
+        dir: '{{ local_git_path }}{{ config_env }}/'
+        files_matching: '.yml'
+      run_once: yes
+    - meta: refresh_inventory
+    - include: tasks/nexus_build_pull.yml
+      run_once: yes
+    - name: create product folder
+      file:
+        path: "/U01/{{ product }}/"
+        state: directory
+        recurse: yes
+        mode: 0775
+        owner: webtech
+        group: analytics
+    - include: tasks/db_version_check.yml
+  roles: 
+    - { role: backup_role }
+    - { role: ha_conf_update, when: pkg.find('ha') != -1 }
+    - { role: nginx_conf_update, when: pkg.find('nginx') != -1 }
+    - { role: php_conf_update, when: pkg.find('php') != -1 }
+    - { role: build_update, when: pkg.find('build_update') != -1 }
+    - { role: shell_executables, when: pkg.find('shell_executables') != -1 }
+    - { role: properties_update, when: pkg.find('properties') != -1 }
+    - { role: db_flyway_migration, when: pkg.find('db_flyway_migration') != -1 }
+  post_tasks:
+    - include: tasks/remove_old_files.yml
+      run_once: yes
+      with_items:
+        - "{{ nodeList }}"
+      loop_control:
+        loop_var: node_name

@@ -1,0 +1,24 @@
+---
+
+- name: check DB version file
+  local_action:
+    module: stat path="{{ build_local_server_path }}buildVersion.txt"
+  register: NewversionFileCheck
+
+- name: fail if DB version file is not present
+  fail: msg="releaseVersion.properties file not found in new build.  Exiting"
+  when: not NewversionFileCheck.stat.exists
+
+- name: build number from new build
+  local_action: shell grep -i "^build.number"  {{ build_local_server_path }}buildVersion.txt | cut -d '=' -f2
+  register: NewBuildNumber
+- debug:
+    var: NewBuildNumber.stdout
+- name: Copy fact to other servers ( This task is for ha )
+  local_action:
+     module: set_fact
+     NewBuildNumber_ha: "{{ NewBuildNumber.stdout }}"
+  delegate_to: "{{ item }}"
+  with_items: "{{ ansible_play_hosts }}"
+  run_once: yes
+#"{{ build_local_server_path }}{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties"

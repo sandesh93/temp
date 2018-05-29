@@ -1,0 +1,8 @@
+---
+
+- name: Include the flyway task iterating over all the nodes
+  include: flyway.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

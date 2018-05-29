@@ -1,0 +1,8 @@
+---
+
+- name: get all the db values
+  include_tasks: db_upgrade.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

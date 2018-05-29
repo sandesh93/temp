@@ -1,0 +1,63 @@
+---
+
+  - name: "check for ocr_template_location folder"
+    stat:
+      path: "{{ gluster_path }}/{{ ocr_template_location }}"
+    register: ocr_template_loc
+
+
+  - name: " Create ocr_template_location folder if it does not exists "
+    file:
+      path: "{{ gluster_path }}/{{ ocr_template_location }}"
+      state: directory
+      owner: webtech
+      group: analytics
+      recurse: yes
+      mode: 0775
+    when: not ocr_template_loc.stat.exists
+
+
+  - name: create backup folder - for ocr templates
+    file: path="{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}" state=directory recurse=yes mode=0755
+    with_subelements:
+      - "{{ node_name }}"
+      - ocr_template_location
+    ignore_errors: true
+
+  - name: Backup the existing config to backup folder
+    command: cp "{{ backup_path }}/Release_{{ git_tag }}_{{ NewBuildNumber.stdout }}/{{ item.0.name }}/{{ item.1 }}../ {{ gluster_path }}/{{ ocr_template_location }} "
+    with_subelements:
+      - "{{ node_name }}"
+      - ocr_template_location
+    ignore_errors: true
+
+
+  - name: "Remove files related to OCR templates"
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ ocr_template_location }}"
+      state: absent
+    run_once: yes
+
+  - name: Create OCR directory
+    file:
+      group: analytics
+      mode: "0755"
+      owner: webtech
+      path: "{{ gluster_path }}/{{ ocr_template_location }}"
+      recurse: true
+      state: directory
+    run_once: yes
+
+  - name: Copy ocr templates to gluster path
+    copy:
+      src: "{{ build_local_server_path }}builds/templates/{{ item }}"
+      dest: "{{ gluster_path }}/{{ ocr_template_location }}/"
+      owner: webtech
+      group: analytics
+      mode: '0775'
+    with_items:
+      - "{{ mail_templates }}"
+    run_once: yes

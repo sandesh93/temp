@@ -1,0 +1,30 @@
+---
+# for consul update
+- name: remove git2consul.json
+  local_action:
+    module: file
+    path: /tmp/git2consul.json
+    state: absent
+  ignore_errors: yes
+
+- name: remove git2consul.json
+  local_action:
+    module: file
+    path: "/tmp/{{ EnvName }}"
+    state: absent
+  ignore_errors: yes
+
+- name: remove localbackup copy
+  local_action:
+    module: file
+    path: "{{ consul_local_backup_path }}Release_{{ TagName }}/kv.json"
+    state: absent
+  ignore_errors: yes  
+
+# for consul rollback  
+- name: remove localbackup folder
+  local_action:
+    module: file
+    path: "{{ consul_local_backup_path }}"
+    state: absent
+  ignore_errors: yes

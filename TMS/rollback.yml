@@ -1,0 +1,40 @@
+---
+
+- hosts: all
+  become: yes
+  remote_user: webtech
+  vars_files:
+    - vars/main-vars.yml
+  pre_tasks:
+    - include: tasks/git.yml
+      run_once: yes
+    - name: including git vars - configurations
+      local_action:
+        module: include_vars
+        dir: '{{ local_git_path }}{{ config_env }}/'
+        files_matching: '.yml'
+      run_once: yes
+    - include: tasks/get_build_version.yml
+      with_items:
+        - "{{ nodeList }}"
+      loop_control:
+        loop_var: node_name
+        
+    - meta: refresh_inventory
+  roles: 
+    - { role: ha_rollback, when: pkg.find('ha') != -1 }
+    - { role: nginx_rollback, when: pkg.find('nginx') != -1 }
+    - { role: php_rollback, when: pkg.find('php') != -1 }
+    - { role: properties_rollback, when: pkg.find('properties') != -1 }
+    - { role: tomcat_rollback, when: pkg.find('tomcat') != -1 }
+  post_tasks:
+    - include: tasks/delete_backup
+      with_items:
+        - "{{ nodeList }}"
+      loop_control:
+        loop_var: node_name
+    - include: tasks/remove_old_files.yml
+      with_items:
+        - "{{ nodeList }}"
+      loop_control:
+        loop_var: node_name

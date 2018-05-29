@@ -1,0 +1,121 @@
+---
+
+- name: "Ensure extension value is replaced with PHP_appd_extension"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: extension
+    value: "{{ PHP_appd_extension }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.log4cxx_config value is replaced with path to appdynamics_agent_log4cxx.xml"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.log4cxx_config
+    value: "{{ AppDynamics_HOME }}appdynamics-php-agent/php/conf/appdynamics_agent_log4cxx.xml"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.php_agent_root value is replaced with Path to php agent"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.php_agent_root
+    value: "{{ AppDynamics_HOME }}appdynamics-php-agent"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.controller.hostName value is replaced with controllerHost"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.controller.hostName
+    value: "{{ controllerHost }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.controller.port value is replaced with controllerPort"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.controller.port
+    value: "{{ controllerPort }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.applicationName value is replaced with Application_name"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.applicationName
+    value: "{{ Application_name }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.tierName value is replaced with PHP_tireName"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.tierName
+    value: "{{ PHP_tierName }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.nodeName value is replaced with PHP_nodeName"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.nodeName
+    value: "{{ PHP_nodeName }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.controller.ssl.enabled value is replaced with PHP_ssl_enabled"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.controller.ssl.enabled
+    value: "{{ PHP_ssl_enabled }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.accountName value is replaced with Controller_accountName"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.accountName
+    value: "{{ Controller_accountName }}"
+    mode: 0755
+    state: present
+  ignore_errors: true
+
+
+- name: "Ensure agent.accountAccessKey value is replaced with Controller_accountAccesKey"
+  ini_file:
+    dest: "/usr/local/php-{{ php_version }}/lib/php.ini"
+    section: AppDynamics Agent
+    option: agent.accountAccessKey
+    value: "{{ Controller_accountAccessKey }}"
+    mode: 0755
+    state: present
+  ignore_errors: true

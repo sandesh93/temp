@@ -1,0 +1,11 @@
+---
+
+- name: Create {{ product }} folder
+  file: path="/U01/{{ product }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+
+- name: include_tasks the main tomact task iterating over all the nodes
+  include_tasks: deliverables.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

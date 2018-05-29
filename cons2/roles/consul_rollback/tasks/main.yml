@@ -1,0 +1,44 @@
+---
+
+- set_fact:
+   EnvName : "{{ Env|upper }}"
+   ProdName: "{{ Prod|upper }}"
+
+# Retrieve the backup
+- name: Create local backup folder to retrieve data
+  local_action:
+   module: file
+   path: "{{ consul_local_backup_path }}"
+   state: directory
+   recurse: yes
+   mode: 0777
+
+- name: copy from backup location to control server
+  fetch: 
+   src: "{{ backup_location }}Release_{{ TagName }}/kv.json"
+   dest: "{{ consul_local_backup_path }}"
+   owner: webtech
+
+- name: change the permissions of the local backup file
+  local_action:
+    module: file
+    path: "{{ consul_local_backup_path }}{{ backup_ip }}/{{ backup_location }}Release_{{ TagName }}/kv.json"
+    owner: webtech
+    group: analytics
+    mode: 0777
+
+- name: Delete the existing values
+  local_action:
+   module: uri
+   url: http://{{ EndPoint }}:{{ EndPointPort }}/v1/kv/{{ EnvName }}/{{ ProdName }}?recurse
+   method: DELETE
+
+- name: consul restore
+  local_action:
+   module: shell runuser -l root -c 'export CONSUL_HTTP_ADDR={{ EndPoint }}:{{ EndPointPort }} && consul kv import @{{ consul_local_backup_path }}{{ backup_ip }}/{{ backup_location }}Release_{{ TagName }}/kv.json'
+  register: ckv
+
+- name: fail if the exit code is not zero
+  fail:
+    msg: "consul kv export failed with exit code {{ g2c.rc }}"
+  when: ckv.rc != 0 

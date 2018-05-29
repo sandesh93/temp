@@ -1,0 +1,41 @@
+---
+
+# Build and tomcat vars needed for backup
+# build_path & tomcat_path & backup_path is added in git
+# build_version & git_tag will be external parameter
+
+# local server vars for copy the nexus artifactory
+build_local_server_path: /U01/tmp/{{ product }}/{{ config_env }}/
+tomcat_local_server_path: /U01/tmp/{{ product }}/{{ config_env }}/
+local_git_path : /U01/tmp/{{ product }}/{{ config_env }}/git/
+
+# Artifactory vars
+# Artifactory vars
+extension_type: zip
+nexus_user: gauri.save
+nexus_passwd: pass@123
+release_number: git_tag
+
+build_group_id: com.zycus
+build_artifact_id: ZSN
+build_version: "{{ release_number }}"
+# If the build is patch then build_version variable will be replaced as ReleaseNumber_PatchNumber ( The task is part of in nexus_pull.yml ).
+
+build_release_url: http://192.168.1.215:8081/nexus/content/repositories/zycus.products/
+build_snapshot_url: http://192.168.1.215:8081/nexus/content/repositories/ZycusProductSnapShots/
+
+
+tomcat_group_id: thirdparties
+tomcat_artifact_id: apache-tomcat
+tomcat_repo_url: http://192.168.1.215:8081/nexus/content/repositories/zycus.docket/ 
+
+# Git vars
+git_url: git@gitlab.zycus.com:root/ZSN.git
+git_key: /tmp/id_git_rsa
+
+# DB migration opcacache credentials
+opcache_un: eprocadmin
+opcache_pw: eproc123
+
+# The environment as per folder name in git for the configuration files
+config_env: Qc-config

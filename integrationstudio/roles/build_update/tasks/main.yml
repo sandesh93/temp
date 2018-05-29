@@ -1,0 +1,11 @@
+---
+
+- name: Create {{ product }} folder
+  file: path="/U01/{{ product }}" state=directory recurse=yes owner=webtech group=analytics mode=0755
+
+- name: Include the main build task iterating over all the nodes
+  include_tasks: builds.yml
+  with_items:
+    - "{{ nodeList }}"
+  loop_control:
+    loop_var: node_name

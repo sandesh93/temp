@@ -1,0 +1,188 @@
+---
+
+- block:
+# JAVA migration starts here
+# check if .class file present or not
+    - name: check if class file present or not
+      stat: path="{{ build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade/com/zycus/{{ product|lower }}/patch/{{ migration }}.class"
+      register: classFilestat
+#    - name: fail if file is not there
+#      fail: msg="{{ migration }}.class file does not exists in required path"
+#      when: not classFilestat.stat.exists
+
+    - set_fact:
+        Class_File_exists: true
+      when: classFilestat.stat.exists
+
+    - set_fact:
+        Class_File_exists: false
+      when: not classFilestat.stat.exists
+
+    - block:
+    #Get DB values form consul
+        - name: Get DB url from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_URL?raw
+            method: GET
+            return_content: yes
+          register: url
+          ignore_errors: true
+        - name: Get url var
+          set_fact:
+            db_url: "{{ url.content }}"
+          ignore_errors: true
+
+        - name: Get DB username from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_USERNAME?raw
+            method: GET
+            return_content: yes
+          register: username
+        - name: Get username var
+          set_fact:
+            db_username: "{{ username.content }}"
+
+        - name: Get DB password from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_ORACLE_PASSWORD?raw
+            method: GET
+            return_content: yes
+          register: password
+        - name: Get password var
+          set_fact:
+            db_password: "{{ password.content }}"
+
+    #If consul is down then get DB values from properties file
+        - name: if consul is down then take url value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_URL" | cut -d'=' -f2
+          when: db_url is undefined
+          with_items: "{{ node_name }}"
+          register: db_urlReg
+        - set_fact: db_url="{{ item.stdout }}"
+          when: db_url is undefined
+          with_items: "{{ db_urlReg.results }}"
+
+        - name: if consul is down then take username value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_USERNAME" | cut -d'=' -f2
+          when: db_username is undefined
+          with_items: "{{ node_name }}"
+          register: db_usernameReg
+        - set_fact: db_username="{{ item.stdout }}"
+          when: db_username is undefined
+          with_items: "{{ db_usernameReg.results }}"
+
+        - name: if consul is down then take password value from properties file
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_ORACLE_PASSWORD" | cut -d'=' -f2`
+          when: db_password is undefined
+          with_items: "{{ node_name }}"
+          register: db_passwordReg
+        - set_fact: db_password="{{ item.stdout }}"
+          when: db_password is undefined
+          with_items: "{{ db_passwordReg.results }}"
+
+    #Fill the values in jdbc.properties file
+        - name: check if jdbc.properties file present or not
+          file:
+            path: "{{ build_path }}/{{ build_folder }}/DB/jdbc.properties"
+            state: touch
+            owner: webtech
+            group: analytics
+            mode: 0775
+
+        - name: empty the jdbc properties file
+          shell: truncate {{ build_path }}/{{ build_folder }}/DB/jdbc.properties --size 0
+
+        - name: Add the details in jdbc.properties file
+          blockinfile:
+            dest: "{{ build_path }}/{{ build_folder }}/DB/jdbc.properties"
+            block: |
+                {{ product|lower }}.oracle.url={{ db_url }}
+                {{ product|lower }}.oracle.username={{ db_username }}
+                {{ product|lower }}.oracle.password={{ db_password }}
+            owner: webtech
+            group: analytics
+            mode: 0775
+
+    # Add required parameters to .class file
+        - name: fill template java_config_vars.j2 with the values
+          template:
+            src: "{{ local_git_path }}{{ config_env }}/java_config_vars.j2"
+            dest: "{{ build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade/Properties/java_config_vars.properties"
+            owner: webtech
+            group: analytics
+            mode: '0775'
+
+    #Run the script
+        - name: include all lib to CLASSPATH
+          set_fact:
+            CLASSPATH : "{{ item.java_path }}{{ item.java_version }}/lib:{{ item.tomcat_build_path }}/{{ build_folder }}/DB:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/SQL:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade/Properties:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/config.txt:{{ item.tomcat_build_path }}/{{ build_folder }}/DB/jdbc.properties:"
+          with_items: "{{ node_name }}"
+  
+        - name: include all lib to CLASSPATH
+          set_fact:
+            CLASSPATH : "{{ CLASSPATH + build_path + '/' + build_folder + '/DB/lib/' + item.split('/')[-1] + ':' }}"
+          with_fileglob:
+            - "{{ build_local_server_path }}builds/DB/lib/*"
+        - set_fact:
+            CLASSPATH: "{{ CLASSPATH[:-1] }}"
+
+        - debug: msg="THE CLASS PATH - {{ CLASSPATH}}"
+
+        - name: run java migration script
+          shell: runuser -l webtech -c 'cd {{ build_path }}/{{ build_folder }}/DB/DB_migration/Upgrade ; java -Xmx4096M -Duser.timezone=GMT -classpath {{ CLASSPATH  }} com.zycus.{{ product|lower }}.patch.{{ migration }} {{ consul_ip }}:{{ consul_port }} {{ setup_env }} {{ BuildNEWVersion }} >> {{ build_path }}/{{ build_folder }}/DB/log.txt'
+          when: classFilestat.stat.exists
+
+    #Check java migration successful or not
+        - name: check contents of log file
+          shell: grep -r -l "ERROR_PATCH_EXECUTION" {{ build_path }}/{{ build_folder }}/DB/log.txt
+          register: DBMigrationOP
+          when: classFilestat.stat.exists
+          ignore_errors: true
+        - name: fail if condition maches
+          fail: msg=" {{ product }} Alter Execution Failed. Upgrade Failed.Exiting.. DB RollBack Needed"
+          when: classFilestat.stat.exists and ( DBMigrationOP.stdout != "" )
+        - debug: msg="Java Patch Upgrade successful"
+          when: classFilestat.stat.exists and ( DBMigrationOP.stdout == "" )
+
+    #Redis cache and opcache clear
+        - name: get application url
+          shell: cat {{ item.tomcat_path }}/{{ item.tomcat_folder }}conf/{{ product|lower }}.properties | grep "{{ product|upper }}_WEB_URL" | cut -d'=' -f2 | sed 's/\\//g'
+          register: application_url
+          when: classFilestat.stat.exists
+          with_items: "{{ node_name }}"
+        - shell: curl -vvv -s --insecure "{{ application_url }}/scripts/opcache_clear.php?username={{ opcache_un }}&password={{ opcache_pw }}" 2>&1 | tee -a {{ build_path }}/{{ build_folder }}/DB/log.txt
+          when: classFilestat.stat.exists
+
+        - name: Get Service url from consul
+          uri:
+            url: http://{{ consul_ip }}:{{ consul_port }}/v1/kv/{{ setup_env }}/{{ product|upper }}/{{ product|upper }}_SERVICE_URL?raw
+            method: GET
+            return_content: yes
+          register: service_url
+          ignore_errors: true
+          when: classFilestat.stat.exists
+        - name: Get url var
+          set_fact:
+            product_service_url: "{{ service_url.content }}"
+          ignore_errors: true
+          when: classFilestat.stat.exists
+
+        - name: clear opcache
+          set_fact:
+            cache_setting_prop_path: "{{ product_service_url }}/rest/{{ product|lower }}/rebuildCache/rebuild"
+          when: classFilestat.stat.exists
+        - shell: curl {{ cache_setting_prop_path }}
+          when: classFilestat.stat.exists
+
+    #Verify new version
+        - name: Get new version number
+          shell: grep -i -F  release.number {{ build_path }}/{{ build_folder }}/{{ product|lower }}/WEB-INF/releaseVersion.properties |  grep "^release.number" | cut -d '=' -f2
+          register: presentReleaseVersion
+          when: classFilestat.stat.exists
+        - debug: msg="Upgrade verification done"
+          when: classFilestat.stat.exists and ( presentReleaseVersion.stdout == NEWDBVersion.stdout )
+      when: Class_File_exists
+  when: node_name | selectattr(search_key,'equalto',search_val) | list | count > 0
+  vars:
+    search_key: name
+    search_val: service_node
